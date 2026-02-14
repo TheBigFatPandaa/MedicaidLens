@@ -50,12 +50,6 @@ def initialize_database():
     row_count = con.execute("SELECT COUNT(*) FROM claims").fetchone()[0]
     logger.info("Loaded %s rows into claims table", f"{row_count:,}")
 
-    # Create indexes for common queries
-    logger.info("Creating indexes...")
-    con.execute("CREATE INDEX idx_billing_npi ON claims(billing_npi)")
-    con.execute("CREATE INDEX idx_hcpcs ON claims(hcpcs_code)")
-    con.execute("CREATE INDEX idx_month ON claims(claim_month)")
-
     # Pre-computed aggregate: Provider summary
     logger.info("Creating aggregate tables...")
     con.execute("""
