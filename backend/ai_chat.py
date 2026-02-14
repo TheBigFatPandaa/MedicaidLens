@@ -67,6 +67,25 @@ You have access to the largest Medicaid provider spending database in HHS histor
 | code_avg_paid | DOUBLE | Peer average payment |
 | code_avg_claims | DOUBLE | Peer average claims |
 
+**provider_geo** — NPI → geographic location lookup (617K rows)
+| Column | Type | Description |
+|--------|------|-------------|
+| npi | VARCHAR | Provider NPI (join to billing_npi) |
+| name | VARCHAR | Provider / organization name |
+| provider_type | VARCHAR | 'Individual' or 'Organization' |
+| specialty | VARCHAR | Primary taxonomy description |
+| state | VARCHAR | 2-letter US state code (e.g. 'CA', 'TX', 'NY') |
+| city | VARCHAR | City name |
+
+**state_summary** — one row per US state (~55 rows)
+| Column | Type | Description |
+|--------|------|-------------|
+| state | VARCHAR | 2-letter state code |
+| providers | BIGINT | Number of providers in state |
+| total_claims | BIGINT | Total claims |
+| total_paid | DOUBLE | Total payments ($) |
+| total_beneficiaries | BIGINT | Total beneficiaries |
+
 ### 🐢 RAW TABLE (use ONLY when you need month-level or cross-dimensional granularity)
 
 **claims** — 227M+ rows, SLOW for full scans
@@ -81,7 +100,7 @@ You have access to the largest Medicaid provider spending database in HHS histor
 | total_paid | DOUBLE | Medicaid payment ($) |
 
 ## CRITICAL RULES
-1. **ALWAYS prefer pre-aggregated tables.** Use provider_summary for provider questions, code_summary for HCPCS questions, monthly_trends for time series, anomaly_scores for fraud/outliers.
+1. **ALWAYS prefer pre-aggregated tables.** Use provider_summary for provider questions, code_summary for HCPCS questions, monthly_trends for time series, anomaly_scores for fraud/outliers, state_summary for state-level questions, provider_geo for provider location/specialty lookups.
 2. ONLY query `claims` when you absolutely need month-level breakdown per provider or per code, or cross-joins between providers and codes.
 3. Use DuckDB SQL syntax.
 4. ONLY SELECT statements. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE.
