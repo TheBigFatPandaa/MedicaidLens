@@ -793,8 +793,132 @@ a:hover {
 .chat-bubble .narrative {
   margin-top: var(--space-3);
   color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.7;
+  padding: var(--space-3) 0;
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* SQL Toggle */
+.sql-section {
+  margin: var(--space-2) 0;
+}
+
+.sql-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(88, 166, 255, 0.06);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 3px 12px;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+.sql-toggle:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+/* Big Number Display */
+.big-number-result {
+  display: flex;
+  gap: var(--space-6);
+  padding: var(--space-5) 0;
+}
+
+.big-number-item {
+  text-align: center;
+}
+
+.big-number-value {
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-violet));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.big-number-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+/* Elapsed Time */
+.elapsed-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  margin-top: var(--space-3);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.elapsed-live {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-top: var(--space-2);
+  font-family: var(--font-mono);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Table Row Count */
+.table-row-count {
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-align: right;
+  border-top: 1px solid var(--border-subtle);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* Muted Cell */
+.text-muted-cell {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* Chat Error */
+.chat-error {
+  color: var(--accent-rose);
   font-size: 0.82rem;
-  line-height: 1.65;
+  margin-top: var(--space-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 /* ─── Chat Input ─────────────────────── */

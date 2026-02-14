@@ -3,7 +3,7 @@ import {
     BarChart, Bar, AreaChart, Area,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Send, Bot, User, Sparkles, Zap, Search, TrendingUp, AlertTriangle, Database, DollarSign } from 'lucide-react'
+import { Send, Bot, User, Sparkles, Zap, Search, TrendingUp, AlertTriangle, Database, DollarSign, Clock, ChevronDown, ChevronUp } from 'lucide-react'
 import { sendChatMessage, fetchOverview, formatCurrency, formatNumber, formatMonth } from '../api'
 
 const SUGGESTED_QUERIES = [
@@ -15,6 +15,129 @@ const SUGGESTED_QUERIES = [
     { icon: <TrendingUp size={15} />, text: 'Show spending growth rate by year' },
 ]
 
+/* Lightweight inline markdown: **bold**, *italic*, `code`, and line breaks */
+function RichText({ text }) {
+    if (!text) return null
+    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\n)/g)
+    return (
+        <span>
+            {parts.map((part, i) => {
+                if (!part) return null
+                if (part === '\n') return <br key={i} />
+                if (part.startsWith('**') && part.endsWith('**'))
+                    return <strong key={i} style={{ color: 'var(--accent-cyan)', fontWeight: 700 }}>{part.slice(2, -2)}</strong>
+                if (part.startsWith('*') && part.endsWith('*'))
+                    return <em key={i}>{part.slice(1, -1)}</em>
+                if (part.startsWith('`') && part.endsWith('`'))
+                    return <code key={i} style={{ background: 'rgba(88,166,255,0.08)', padding: '1px 5px', borderRadius: '4px', fontFamily: 'var(--font-mono)', fontSize: '0.78rem', color: 'var(--accent-violet)' }}>{part.slice(1, -1)}</code>
+                return <span key={i}>{part}</span>
+            })}
+        </span>
+    )
+}
+
+/* Smart cell formatter — detects currency, NPI, percentages, etc. */
+function SmartCell({ colKey, value, row }) {
+    const key = colKey.toLowerCase()
+
+    // Provider name — bold and prominent
+    if (key === 'provider_name') {
+        if (!value || value === 'Unknown') return <span className="text-muted-cell">—</span>
+        return <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{value}</span>
+    }
+
+    // Specialty — styled tag
+    if (key === 'specialty') {
+        if (!value) return <span className="text-muted-cell">—</span>
+        return <span className="badge badge-info">{value}</span>
+    }
+
+    // State / City — secondary text
+    if (key === 'state' || key === 'city') {
+        if (!value) return <span className="text-muted-cell">—</span>
+        return <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem' }}>{value}</span>
+    }
+
+    // Provider type
+    if (key === 'provider_type') {
+        if (!value) return <span className="text-muted-cell">—</span>
+        const color = value === 'Organization' ? 'var(--accent-violet)' : 'var(--accent-teal)'
+        return <span style={{ fontSize: '0.7rem', fontWeight: 600, color }}>{value}</span>
+    }
+
+    // HCPCS description
+    if (key === 'description') {
+        if (!value) return <span className="text-muted-cell">—</span>
+        return <span style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', fontStyle: 'italic' }}>{value}</span>
+    }
+
+    // Currency columns
+    if (typeof value === 'number' && (key.includes('paid') || key.includes('cost') || key.includes('avg_paid'))) {
+        return <span className="currency">{formatCurrency(value)}</span>
+    }
+
+    // Z-scores — color coded
+    if (typeof value === 'number' && key.includes('z_score')) {
+        const color = value > 5 ? 'var(--accent-rose)' : value > 3 ? 'var(--accent-amber)' : 'var(--accent-emerald)'
+        return <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color }}>{value.toFixed(1)}σ</span>
+    }
+
+    // Large numbers
+    if (typeof value === 'number' && value > 1000) {
+        return <span className="mono">{formatNumber(value)}</span>
+    }
+
+    // Decimals
+    if (typeof value === 'number' && value % 1 !== 0) {
+        return <span className="mono">{value.toFixed(2)}</span>
+    }
+
+    // Regular number
+    if (typeof value === 'number') {
+        return <span className="mono">{value.toLocaleString()}</span>
+    }
+
+    // Dates
+    if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+        return <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>{formatMonth(value)}</span>
+    }
+
+    // Default
+    return <span>{value ?? '—'}</span>
+}
+
+/* Format column header from snake_case */
+function formatHeader(key) {
+    const labels = {
+        billing_npi: 'NPI',
+        provider_name: 'Provider',
+        provider_type: 'Type',
+        specialty: 'Specialty',
+        state: 'State',
+        city: 'City',
+        hcpcs_code: 'Code',
+        description: 'Description',
+        total_paid: 'Total Paid',
+        total_claims: 'Claims',
+        total_beneficiaries: 'Beneficiaries',
+        record_count: 'Records',
+        unique_codes: 'Codes',
+        active_months: 'Active Mo.',
+        z_score_paid: 'Z-Score ($)',
+        z_score_claims: 'Z-Score (Claims)',
+        avg_paid_per_claim: 'Avg $/Claim',
+        code_avg_paid: 'Peer Avg $',
+        code_avg_claims: 'Peer Avg Claims',
+        active_providers: 'Providers',
+        provider_count: 'Providers',
+        claim_month: 'Month',
+        first_month: 'First Active',
+        last_month: 'Last Active',
+        servicing_npi: 'Servicing NPI',
+    }
+    return labels[key] || key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
+}
+
 function ResultTable({ data }) {
     if (!data || data.length === 0) return null
     const keys = Object.keys(data[0])
@@ -23,27 +146,24 @@ function ResultTable({ data }) {
             <table className="data-table">
                 <thead>
                     <tr>
-                        {keys.map(k => <th key={k}>{k.replace(/_/g, ' ')}</th>)}
+                        {keys.map(k => <th key={k}>{formatHeader(k)}</th>)}
                     </tr>
                 </thead>
                 <tbody>
                     {data.map((row, i) => (
                         <tr key={i}>
                             {keys.map(k => (
-                                <td key={k} className={typeof row[k] === 'number' ? 'mono' : ''}>
-                                    {typeof row[k] === 'number'
-                                        ? (row[k] > 1000 && k.toLowerCase().includes('paid')
-                                            ? formatCurrency(row[k])
-                                            : row[k] > 1000
-                                                ? formatNumber(row[k])
-                                                : row[k] % 1 !== 0 ? row[k].toFixed(2) : row[k])
-                                        : row[k]}
+                                <td key={k}>
+                                    <SmartCell colKey={k} value={row[k]} row={row} />
                                 </td>
                             ))}
                         </tr>
                     ))}
                 </tbody>
             </table>
+            <div className="table-row-count">
+                {data.length} row{data.length !== 1 ? 's' : ''}
+            </div>
         </div>
     )
 }
@@ -107,6 +227,7 @@ function ResultChart({ data, config, type }) {
 
 function ChatMessage({ message }) {
     const isUser = message.role === 'user'
+    const [sqlExpanded, setSqlExpanded] = useState(false)
 
     return (
         <div className={`chat-message ${isUser ? 'user' : 'assistant'}`}>
@@ -114,37 +235,70 @@ function ChatMessage({ message }) {
                 {isUser ? <User size={16} /> : <Bot size={16} />}
             </div>
             <div className="chat-bubble">
+                {/* Thinking — collapsible */}
                 {!isUser && message.thinking && (
-                    <div className="thinking">💭 {message.thinking}</div>
+                    <div className="thinking">
+                        <Sparkles size={12} style={{ opacity: 0.6 }} />
+                        <span>{message.thinking}</span>
+                    </div>
                 )}
 
+                {/* SQL — collapsible */}
                 {!isUser && message.sql && (
-                    <div className="sql-block">{message.sql}</div>
+                    <div className="sql-section">
+                        <button className="sql-toggle" onClick={() => setSqlExpanded(!sqlExpanded)}>
+                            <Database size={12} />
+                            <span>SQL Query</span>
+                            {sqlExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                        </button>
+                        {sqlExpanded && (
+                            <div className="sql-block">{message.sql}</div>
+                        )}
+                    </div>
                 )}
 
-                {!isUser && message.results && message.visualization === 'table' && (
-                    <ResultTable data={message.results} />
-                )}
-
-                {!isUser && message.results && ['line_chart', 'bar_chart'].includes(message.visualization) && (
-                    <ResultChart data={message.results} config={message.chart_config} type={message.visualization} />
-                )}
-
+                {/* Large number result */}
                 {!isUser && message.visualization === 'number' && message.results?.[0] && (
-                    <div style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', margin: '12px 0', letterSpacing: '-0.02em' }}>
-                        {Object.values(message.results[0]).map((v, i) => (
-                            <span key={i}>{typeof v === 'number' && v > 1000 ? formatCurrency(v) : v}</span>
+                    <div className="big-number-result">
+                        {Object.entries(message.results[0]).map(([k, v], i) => (
+                            <div key={i} className="big-number-item">
+                                <div className="big-number-value">
+                                    {typeof v === 'number' && v > 1000 ? formatCurrency(v) : v}
+                                </div>
+                                <div className="big-number-label">{formatHeader(k)}</div>
+                            </div>
                         ))}
                     </div>
                 )}
 
-                {!isUser && message.narrative && (
-                    <div className="narrative">{message.narrative}</div>
+                {/* Table results */}
+                {!isUser && message.results && message.visualization === 'table' && (
+                    <ResultTable data={message.results} />
                 )}
 
+                {/* Chart results */}
+                {!isUser && message.results && ['line_chart', 'bar_chart'].includes(message.visualization) && (
+                    <ResultChart data={message.results} config={message.chart_config} type={message.visualization} />
+                )}
+
+                {/* Narrative — rich text */}
+                {!isUser && message.narrative && (
+                    <div className="narrative">
+                        <RichText text={message.narrative} />
+                    </div>
+                )}
+
+                {/* Error */}
                 {!isUser && message.error && (
-                    <div style={{ color: 'var(--accent-rose)', fontSize: '0.82rem', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <div className="chat-error">
                         <AlertTriangle size={14} /> {message.error}
+                    </div>
+                )}
+
+                {/* Elapsed time */}
+                {!isUser && message.elapsed && (
+                    <div className="elapsed-time">
+                        <Clock size={11} /> {message.elapsed}
                     </div>
                 )}
 
@@ -159,7 +313,9 @@ export default function Chat() {
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
     const [overview, setOverview] = useState(null)
+    const [elapsed, setElapsed] = useState(0)
     const messagesEndRef = useRef(null)
+    const timerRef = useRef(null)
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -167,12 +323,22 @@ export default function Chat() {
 
     useEffect(() => { scrollToBottom() }, [messages])
 
-    // Fetch overview stats for the hero
     useEffect(() => {
         fetchOverview()
             .then(data => setOverview(data))
             .catch(() => { })
     }, [])
+
+    // Timer for elapsed time display
+    useEffect(() => {
+        if (loading) {
+            setElapsed(0)
+            timerRef.current = setInterval(() => setElapsed(t => t + 1), 1000)
+        } else {
+            clearInterval(timerRef.current)
+        }
+        return () => clearInterval(timerRef.current)
+    }, [loading])
 
     const handleSend = async (text) => {
         const messageText = text || input.trim()
@@ -182,6 +348,7 @@ export default function Chat() {
         setMessages(prev => [...prev, userMsg])
         setInput('')
         setLoading(true)
+        const startTime = Date.now()
 
         try {
             const history = messages.map(m => ({
@@ -190,9 +357,11 @@ export default function Chat() {
             }))
 
             const result = await sendChatMessage(messageText, history)
+            const duration = ((Date.now() - startTime) / 1000).toFixed(1)
             const aiMsg = {
                 role: 'assistant',
                 content: result.narrative || '',
+                elapsed: `${duration}s`,
                 ...result,
             }
             setMessages(prev => [...prev, aiMsg])
@@ -273,6 +442,11 @@ export default function Chat() {
                                 <div className="typing-indicator">
                                     <span /><span /><span />
                                 </div>
+                                {elapsed > 0 && (
+                                    <div className="elapsed-live">
+                                        <Clock size={11} /> Analyzing... {elapsed}s
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}

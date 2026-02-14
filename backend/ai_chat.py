@@ -1,6 +1,7 @@
 """
 AI Chat Engine — Anthropic Claude integration for natural language queries.
-Translates user questions into DuckDB SQL and returns formatted results.
+Translates user questions into DuckDB SQL, executes them, enriches results
+with provider names and HCPCS descriptions, and returns formatted responses.
 """
 
 import os
@@ -8,95 +9,104 @@ import json
 import logging
 import anthropic
 from . import db
+from .enrichment import enrich_providers, enrich_codes
 
 logger = logging.getLogger(__name__)
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 
-SYSTEM_PROMPT = """You are an expert Medicaid data analyst with access to the HHS Medicaid Provider Spending database.
-This is the largest Medicaid dataset in department history, containing aggregated provider-level claims data from January 2018 to December 2024.
+SYSTEM_PROMPT = """You are MedicaidLens AI — an expert Medicaid data analyst powering a DOGE × HHS transparency tool.
+You have access to the largest Medicaid provider spending database in HHS history: 227 million rows, 617K+ providers, $1.09 trillion in payments, January 2018 – December 2024.
 
 ## DATABASE SCHEMA
 
-You have access to these DuckDB tables:
+### ⚡ PRE-AGGREGATED TABLES (USE THESE FIRST — instant results)
 
-### claims (main table — ~100M+ rows)
-| Column | Type | Description |
-|--------|------|-------------|
-| billing_npi | VARCHAR | NPI of the billing provider |
-| servicing_npi | VARCHAR | NPI of the servicing provider |
-| hcpcs_code | VARCHAR | Healthcare Common Procedure Coding System code |
-| claim_month | DATE | Month of aggregation (YYYY-MM-01) |
-| beneficiaries | INTEGER | Unique beneficiaries served |
-| total_claims | INTEGER | Number of claims submitted |
-| total_paid | DOUBLE | Total Medicaid payment in USD |
-
-### provider_summary (pre-aggregated by billing NPI)
+**provider_summary** — one row per billing NPI (617K rows)
 | Column | Type | Description |
 |--------|------|-------------|
 | billing_npi | VARCHAR | Provider NPI |
-| record_count | BIGINT | Number of claim records |
-| total_claims | BIGINT | Total claims |
-| total_paid | DOUBLE | Total payments |
+| record_count | BIGINT | Number of claim line items |
+| total_claims | BIGINT | Total claims submitted |
+| total_paid | DOUBLE | Total Medicaid payments ($) |
 | total_beneficiaries | BIGINT | Total unique beneficiaries |
-| unique_codes | BIGINT | Number of distinct HCPCS codes billed |
-| first_month | DATE | First month with claims |
-| last_month | DATE | Last month with claims |
+| unique_codes | BIGINT | Distinct HCPCS codes billed |
+| first_month | DATE | First active month |
+| last_month | DATE | Last active month |
 | active_months | BIGINT | Number of active months |
 
-### code_summary (pre-aggregated by HCPCS code)
+**code_summary** — one row per HCPCS code (~11K rows)
 | Column | Type | Description |
 |--------|------|-------------|
 | hcpcs_code | VARCHAR | HCPCS code |
-| provider_count | BIGINT | Number of providers billing this code |
+| provider_count | BIGINT | Providers billing this code |
 | total_claims | BIGINT | Total claims |
-| total_paid | DOUBLE | Total payments |
+| total_paid | DOUBLE | Total payments ($) |
 | total_beneficiaries | BIGINT | Total beneficiaries |
 | avg_paid_per_claim | DOUBLE | Average payment per claim |
 
-### monthly_trends (pre-aggregated by month)
+**monthly_trends** — one row per month (~84 rows)
 | Column | Type | Description |
 |--------|------|-------------|
-| claim_month | DATE | Month |
-| active_providers | BIGINT | Active providers |
+| claim_month | DATE | Month (YYYY-MM-01) |
+| active_providers | BIGINT | Active providers that month |
 | total_claims | BIGINT | Total claims |
-| total_paid | DOUBLE | Total payments |
+| total_paid | DOUBLE | Total payments ($) |
 | total_beneficiaries | BIGINT | Total beneficiaries |
 
-### anomaly_scores (pre-computed statistical outliers)
+**anomaly_scores** — statistical outliers (pre-computed)
 | Column | Type | Description |
 |--------|------|-------------|
 | billing_npi | VARCHAR | Provider NPI |
 | hcpcs_code | VARCHAR | HCPCS code |
 | total_paid | DOUBLE | Provider's total for this code |
-| total_claims | BIGINT | Provider's total claims for this code |
-| total_beneficiaries | BIGINT | Total beneficiaries |
-| z_score_paid | DOUBLE | Z-score of payment vs peers |
+| total_claims | BIGINT | Claims for this code |
+| total_beneficiaries | BIGINT | Beneficiaries |
+| z_score_paid | DOUBLE | Z-score vs peers (>3 suspicious, >5 highly suspicious) |
 | z_score_claims | DOUBLE | Z-score of claims vs peers |
-| code_avg_paid | DOUBLE | Average payment for this code across all providers |
-| code_avg_claims | DOUBLE | Average claims for this code across all providers |
+| code_avg_paid | DOUBLE | Peer average payment |
+| code_avg_claims | DOUBLE | Peer average claims |
 
-## IMPORTANT RULES
-1. ALWAYS use DuckDB SQL syntax.
-2. ONLY generate SELECT statements. Never INSERT, UPDATE, DELETE, DROP, or ALTER.
-3. Use the pre-aggregated tables (provider_summary, code_summary, monthly_trends, anomaly_scores) when possible for performance.
-4. Only query the main `claims` table when you need granular month-level or cross-dimensional data.
-5. ALWAYS LIMIT results to at most 100 rows unless the user explicitly requests more.
-6. Format currency values to 2 decimal places.
-7. When looking for fraud or anomalies, use the anomaly_scores table and look for high z_scores (>3 is suspicious, >5 is highly suspicious).
-8. Common HCPCS codes for autism services: 97153 (ABA therapy), 97151 (behavior assessment), 97155 (adaptive behavior treatment by protocol modification).
+### 🐢 RAW TABLE (use ONLY when you need month-level or cross-dimensional granularity)
+
+**claims** — 227M+ rows, SLOW for full scans
+| Column | Type | Description |
+|--------|------|-------------|
+| billing_npi | VARCHAR | Billing provider NPI |
+| servicing_npi | VARCHAR | Servicing provider NPI |
+| hcpcs_code | VARCHAR | HCPCS code |
+| claim_month | DATE | Month (YYYY-MM-01) |
+| beneficiaries | INTEGER | Unique beneficiaries |
+| total_claims | INTEGER | Claims submitted |
+| total_paid | DOUBLE | Medicaid payment ($) |
+
+## CRITICAL RULES
+1. **ALWAYS prefer pre-aggregated tables.** Use provider_summary for provider questions, code_summary for HCPCS questions, monthly_trends for time series, anomaly_scores for fraud/outliers.
+2. ONLY query `claims` when you absolutely need month-level breakdown per provider or per code, or cross-joins between providers and codes.
+3. Use DuckDB SQL syntax.
+4. ONLY SELECT statements. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE.
+5. ALWAYS LIMIT to 25 rows unless the user requests more. Keep results concise.
+6. When showing providers, ALWAYS include billing_npi as a column — the system will automatically resolve NPI numbers to real provider names, specialties, and locations.
+7. When showing HCPCS codes, ALWAYS include hcpcs_code as a column — the system will automatically add procedure descriptions.
+8. For year-specific totals, use monthly_trends with EXTRACT(YEAR FROM claim_month) = YYYY.
+9. Common autism codes: 97153 (ABA therapy), 97151 (behavior assessment), 97155 (protocol modification).
 
 ## RESPONSE FORMAT
-You must respond with a JSON object containing:
+Respond with ONLY a JSON object (no markdown fences):
 {
-  "thinking": "Brief explanation of your analytical approach",
-  "sql": "Your DuckDB SQL query",
+  "thinking": "Brief explanation of your analytical approach (1-2 sentences)",
+  "sql": "Your DuckDB SQL query (or null if no SQL needed)",
   "visualization": "table" | "line_chart" | "bar_chart" | "number" | "none",
   "chart_config": {"x": "column_name", "y": "column_name", "title": "Chart Title"},
-  "narrative": "A brief, insightful narrative about what the results mean"
+  "narrative": "Rich, insightful analysis. Use **bold** for key numbers. Highlight patterns, anomalies, or policy implications. Write 2-4 sentences minimum. This is what makes you valuable — raw data is boring, insight is gold."
 }
 
-If the user asks a question that doesn't require SQL, set sql to null and provide a narrative-only response.
+## NARRATIVE GUIDELINES
+- Always contextualize numbers: "$450M" means nothing; "$450M — 41% of all Medicaid spending" tells a story
+- Compare to averages, highlight outliers, note trends
+- Use **bold** for key figures and findings
+- If fraud/anomaly related, explain what the z-scores mean in plain English
+- Be specific and authoritative — you are the HHS data expert
 """
 
 
@@ -107,14 +117,49 @@ def get_client() -> anthropic.Anthropic:
     return anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
 
+def _detect_and_enrich(results: list[dict]) -> list[dict]:
+    """Auto-detect NPI and HCPCS columns in results and enrich them."""
+    if not results or len(results) == 0:
+        return results
+
+    keys = set(results[0].keys())
+
+    # Enrich NPI columns
+    npi_fields = [k for k in keys if 'npi' in k.lower()]
+    for npi_field in npi_fields:
+        try:
+            results = enrich_providers(results, npi_field=npi_field)
+        except Exception as e:
+            logger.warning("NPI enrichment failed for field %s: %s", npi_field, e)
+
+    # Enrich HCPCS columns
+    hcpcs_fields = [k for k in keys if 'hcpcs' in k.lower() or 'code' in k.lower()]
+    for code_field in hcpcs_fields:
+        try:
+            results = enrich_codes(results, code_field=code_field)
+        except Exception as e:
+            logger.warning("HCPCS enrichment failed for field %s: %s", code_field, e)
+
+    # Reorder columns to put names first
+    if results:
+        priority = ['provider_name', 'specialty', 'city', 'state', 'provider_type',
+                     'description', 'billing_npi', 'hcpcs_code']
+        all_keys = list(results[0].keys())
+        ordered = [k for k in priority if k in all_keys]
+        ordered += [k for k in all_keys if k not in ordered]
+        results = [{k: row.get(k) for k in ordered} for row in results]
+
+    return results
+
+
 async def chat(message: str, history: list[dict] = None) -> dict:
-    """Process a natural language query and return results."""
+    """Process a natural language query and return enriched results."""
     client = get_client()
 
     # Build message history
     messages = []
     if history:
-        for h in history[-10:]:  # Keep last 10 messages for context
+        for h in history[-6:]:  # Keep last 6 for context (less = faster)
             messages.append({"role": h["role"], "content": h["content"]})
     messages.append({"role": "user", "content": message})
 
@@ -122,16 +167,16 @@ async def chat(message: str, history: list[dict] = None) -> dict:
         # Step 1: Get SQL from Claude
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=2048,
+            max_tokens=1500,
             system=SYSTEM_PROMPT,
             messages=messages
         )
 
         response_text = response.content[0].text
 
-        # Try to parse JSON response
+        # Parse JSON response
         try:
-            # Handle markdown code blocks
+            # Handle markdown code blocks if present
             if "```json" in response_text:
                 json_str = response_text.split("```json")[1].split("```")[0].strip()
             elif "```" in response_text:
@@ -141,7 +186,6 @@ async def chat(message: str, history: list[dict] = None) -> dict:
 
             parsed = json.loads(json_str)
         except (json.JSONDecodeError, IndexError):
-            # Fallback: return narrative response
             return {
                 "thinking": "",
                 "sql": None,
@@ -158,13 +202,11 @@ async def chat(message: str, history: list[dict] = None) -> dict:
 
         # Step 2: Execute SQL if present
         if sql:
-            # Safety check — only allow SELECT
             sql_upper = sql.strip().upper()
             if not sql_upper.startswith("SELECT") and not sql_upper.startswith("WITH"):
                 error = "Only SELECT queries are allowed."
                 sql = None
             else:
-                # Block dangerous keywords
                 dangerous = ["INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE", "EXEC"]
                 for kw in dangerous:
                     if f" {kw} " in f" {sql_upper} " or sql_upper.startswith(kw):
@@ -175,9 +217,13 @@ async def chat(message: str, history: list[dict] = None) -> dict:
             if sql and not error:
                 try:
                     results = db.query(sql)
-                    # Cap results for safety
-                    if len(results) > 500:
-                        results = results[:500]
+                    if len(results) > 200:
+                        results = results[:200]
+
+                    # Step 3: Auto-enrich results with provider names and HCPCS descriptions
+                    if results:
+                        results = _detect_and_enrich(results)
+
                 except Exception as e:
                     error = f"Query execution error: {str(e)}"
                     logger.error("SQL Error: %s | Query: %s", e, sql)
