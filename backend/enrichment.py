@@ -175,16 +175,54 @@ def get_hcpcs_description(code: str) -> str:
 
 
 def enrich_providers(providers: list[dict], npi_field: str = "billing_npi") -> list[dict]:
-    """Enrich a list of provider records with NPI registry data."""
+    """Enrich provider records with names/specialties from local provider_geo table.
+    Falls back to NPI Registry API only for missing NPIs."""
+    if not providers:
+        return providers
+
+    # Collect unique NPIs
+    npis = list({str(p.get(npi_field, "")) for p in providers if p.get(npi_field)})
+    if not npis:
+        return providers
+
+    # Bulk lookup from local DuckDB (instant)
+    geo_map = {}
+    try:
+        import duckdb, os
+        db_path = os.getenv("DATABASE_PATH", "data/medicaid.duckdb")
+        con = duckdb.connect(db_path, read_only=True)
+        placeholders = ",".join(["?" for _ in npis])
+        rows = con.execute(
+            f"SELECT npi, name, provider_type, specialty, state, city FROM provider_geo WHERE npi IN ({placeholders})",
+            npis
+        ).fetchall()
+        con.close()
+        for npi, name, ptype, spec, state, city in rows:
+            geo_map[npi] = {
+                "name": name or "Unknown",
+                "provider_type": ptype or "",
+                "specialty": spec or "",
+                "state": state or "",
+                "city": city or "",
+            }
+    except Exception as e:
+        logger.warning("Bulk geo lookup failed: %s", e)
+
+    # Apply enrichment
     for provider in providers:
-        npi = provider.get(npi_field, "")
-        if npi:
-            info = lookup_npi(str(npi))
-            provider["provider_name"] = info["name"]
-            provider["provider_type"] = info["provider_type"]
-            provider["specialty"] = info["specialty"]
-            provider["state"] = info["state"]
-            provider["city"] = info["city"]
+        npi = str(provider.get(npi_field, ""))
+        if not npi:
+            continue
+        if npi in geo_map:
+            info = geo_map[npi]
+        else:
+            # Fallback to API for unknown NPIs (rare)
+            info = lookup_npi(npi)
+        provider["provider_name"] = info["name"]
+        provider["provider_type"] = info["provider_type"]
+        provider["specialty"] = info["specialty"]
+        provider["state"] = info["state"]
+        provider["city"] = info["city"]
     return providers
 
 

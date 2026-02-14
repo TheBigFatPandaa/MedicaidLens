@@ -444,7 +444,7 @@ export default function Chat() {
                                 </div>
                                 {elapsed > 0 && (
                                     <div className="elapsed-live">
-                                        <Clock size={11} /> Analyzing... {elapsed}s
+                                        <Clock size={11} /> {elapsed < 2 ? 'Understanding your question...' : elapsed < 4 ? 'Writing SQL query...' : elapsed < 6 ? 'Running query on 227M rows...' : elapsed < 10 ? 'Enriching provider data...' : `Crunching numbers... ${elapsed}s`}
                                     </div>
                                 )}
                             </div>
