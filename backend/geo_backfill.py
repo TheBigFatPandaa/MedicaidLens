@@ -2,8 +2,8 @@
 Batch NPI → State/City geo-enrichment.
 
 Resolves all 617K provider NPIs from provider_summary against the
-NPPES NPI Registry API, writing results to a 'provider_geo' table
-in DuckDB. Creates a 'state_summary' aggregate table after completion.
+NPPES NPI Registry API, writing results to CSV first, then bulk-loading
+into DuckDB provider_geo table. Zero lock contention with the API server.
 
 Usage:  python -m backend.geo_backfill          (full run)
         python -m backend.geo_backfill --limit 1000  (test with 1K NPIs)
@@ -11,9 +11,9 @@ Usage:  python -m backend.geo_backfill          (full run)
 
 import asyncio
 import aiohttp
+import csv
 import duckdb
 import os
-import sys
 import time
 import logging
 import argparse
@@ -27,37 +27,34 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = os.getenv("DATABASE_PATH", "data/medicaid.duckdb")
 NPI_API = "https://npiregistry.cms.hhs.gov/api/"
-CONCURRENCY = 20        # parallel requests
-BATCH_SAVE = 500        # flush to DB every N results
+CSV_STAGING = os.getenv("GEO_CSV_PATH", "data/provider_geo_staging.csv")
+CONCURRENCY = 50        # parallel HTTP requests
 REQUEST_TIMEOUT = 10    # seconds per request
 MAX_RETRIES = 3
 
 
-def _ensure_table(con):
-    """Create provider_geo table if it doesn't exist."""
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS provider_geo (
-            npi           VARCHAR PRIMARY KEY,
-            name          VARCHAR,
-            provider_type VARCHAR,
-            specialty     VARCHAR,
-            state         VARCHAR,
-            city          VARCHAR
-        )
-    """)
-
-
-def _get_pending_npis(con, limit=None):
+def _get_pending_npis(limit=None):
     """Get NPIs from provider_summary not yet in provider_geo."""
-    sql = """
-        SELECT ps.billing_npi
-        FROM provider_summary ps
-        LEFT JOIN provider_geo pg ON ps.billing_npi = pg.npi
-        WHERE pg.npi IS NULL
-    """
-    if limit:
-        sql += f" LIMIT {limit}"
-    return [row[0] for row in con.execute(sql).fetchall()]
+    con = duckdb.connect(DB_PATH, read_only=True)
+    try:
+        # Check if provider_geo exists
+        tables = [r[0] for r in con.execute(
+            "SELECT table_name FROM information_schema.tables WHERE table_name='provider_geo'"
+        ).fetchall()]
+        if tables:
+            sql = """
+                SELECT ps.billing_npi
+                FROM provider_summary ps
+                LEFT JOIN provider_geo pg ON ps.billing_npi = pg.npi
+                WHERE pg.npi IS NULL
+            """
+        else:
+            sql = "SELECT billing_npi FROM provider_summary"
+        if limit:
+            sql += f" LIMIT {limit}"
+        return [row[0] for row in con.execute(sql).fetchall()]
+    finally:
+        con.close()
 
 
 def _parse_npi_result(npi, data):
@@ -70,7 +67,6 @@ def _parse_npi_result(npi, data):
     result = results[0]
     basic = result.get("basic", {})
 
-    # Name
     enumeration_type = basic.get("enumeration_type", "")
     if enumeration_type == "NPI-2":
         name = basic.get("organization_name", "Unknown Org")
@@ -81,14 +77,12 @@ def _parse_npi_result(npi, data):
         name = f"{first} {last}".strip() or "Unknown Provider"
         provider_type = "Individual"
 
-    # Specialty
     taxonomies = result.get("taxonomies", [])
     specialty = ""
     if taxonomies:
         primary = next((t for t in taxonomies if t.get("primary")), taxonomies[0])
         specialty = primary.get("desc", "")
 
-    # Address → state/city
     addresses = result.get("addresses", [])
     state, city = "", ""
     if addresses:
@@ -106,7 +100,7 @@ def _parse_npi_result(npi, data):
 
 
 async def _fetch_npi(session, npi, semaphore):
-    """Fetch a single NPI from the registry, with retries."""
+    """Fetch a single NPI with retries."""
     async with semaphore:
         for attempt in range(MAX_RETRIES):
             try:
@@ -118,10 +112,9 @@ async def _fetch_npi(session, npi, semaphore):
                     if resp.status == 200:
                         data = await resp.json(content_type=None)
                         return _parse_npi_result(npi, data)
-                    if resp.status == 429:  # rate-limited
+                    if resp.status == 429:
                         await asyncio.sleep(2 ** attempt)
                         continue
-                    # Other error — return unknown
                     return _parse_npi_result(npi, {})
             except Exception:
                 if attempt < MAX_RETRIES - 1:
@@ -129,24 +122,36 @@ async def _fetch_npi(session, npi, semaphore):
         return _parse_npi_result(npi, {})
 
 
-def _flush_batch(batch):
-    """Open connection, write a batch, close connection immediately."""
-    if not batch:
+def _bulk_load_csv():
+    """Bulk-load the staged CSV into DuckDB provider_geo (single fast op)."""
+    if not os.path.exists(CSV_STAGING):
+        logger.error("CSV staging file not found: %s", CSV_STAGING)
         return
+    logger.info("Bulk-loading CSV into DuckDB...")
     con = duckdb.connect(DB_PATH, read_only=False)
     try:
-        con.executemany(
-            """INSERT OR REPLACE INTO provider_geo (npi, name, provider_type, specialty, state, city)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            [(r["npi"], r["name"], r["provider_type"], r["specialty"],
-              r["state"], r["city"]) for r in batch],
-        )
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS provider_geo (
+                npi VARCHAR PRIMARY KEY,
+                name VARCHAR,
+                provider_type VARCHAR,
+                specialty VARCHAR,
+                state VARCHAR,
+                city VARCHAR
+            )
+        """)
+        con.execute("""
+            INSERT OR REPLACE INTO provider_geo
+            SELECT * FROM read_csv_auto(?, header=true)
+        """, [CSV_STAGING])
+        total = con.execute("SELECT COUNT(*) FROM provider_geo").fetchone()[0]
+        logger.info("provider_geo now has %s rows", f"{total:,}")
     finally:
         con.close()
 
 
 def create_state_summary():
-    """Build state_summary aggregate table from provider_geo + provider_summary."""
+    """Build state_summary aggregate table."""
     logger.info("Creating state_summary table...")
     con = duckdb.connect(DB_PATH, read_only=False)
     try:
@@ -167,7 +172,6 @@ def create_state_summary():
         """)
         rows = con.execute("SELECT COUNT(*) FROM state_summary").fetchone()[0]
         logger.info("state_summary created with %d states", rows)
-        # Show top 5
         top = con.execute(
             "SELECT state, providers, total_paid FROM state_summary LIMIT 5"
         ).fetchall()
@@ -178,56 +182,60 @@ def create_state_summary():
 
 
 async def run(limit=None):
-    # Brief connection to ensure table exists and get pending NPIs
-    con = duckdb.connect(DB_PATH, read_only=False)
-    _ensure_table(con)
-    npis = _get_pending_npis(con, limit)
+    npis = _get_pending_npis(limit)
     total = len(npis)
-    con.close()  # Release lock immediately
 
     if total == 0:
         logger.info("All NPIs already resolved! Rebuilding state_summary...")
         create_state_summary()
         return
 
-    logger.info("Resolving %s NPIs (concurrency=%d)...", f"{total:,}", CONCURRENCY)
+    logger.info("Resolving %s NPIs → CSV (concurrency=%d)...", f"{total:,}", CONCURRENCY)
 
+    # Write results to CSV (no DuckDB lock needed)
     semaphore = asyncio.Semaphore(CONCURRENCY)
     done = 0
-    batch = []
     t0 = time.time()
 
-    async with aiohttp.ClientSession() as session:
-        # Process in chunks of 5000 to avoid creating too many coroutines
-        for chunk_start in range(0, total, 5000):
-            chunk = npis[chunk_start : chunk_start + 5000]
-            tasks = [_fetch_npi(session, npi, semaphore) for npi in chunk]
+    with open(CSV_STAGING, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["npi", "name", "provider_type", "specialty", "state", "city"])
+        writer.writeheader()
 
-            for coro in asyncio.as_completed(tasks):
-                result = await coro
-                batch.append(result)
-                done += 1
+        async with aiohttp.ClientSession() as session:
+            for chunk_start in range(0, total, 5000):
+                chunk = npis[chunk_start : chunk_start + 5000]
+                tasks = [_fetch_npi(session, npi, semaphore) for npi in chunk]
 
-                if len(batch) >= BATCH_SAVE:
-                    _flush_batch(batch)  # Opens/closes connection briefly
-                    batch = []
+                for coro in asyncio.as_completed(tasks):
+                    result = await coro
+                    writer.writerow(result)
+                    done += 1
 
-                if done % 1000 == 0:
-                    elapsed = time.time() - t0
-                    rate = done / elapsed if elapsed > 0 else 0
-                    eta_min = (total - done) / rate / 60 if rate > 0 else 0
-                    logger.info(
-                        "  %s / %s  (%.0f/s,  ETA %.0f min)",
-                        f"{done:,}", f"{total:,}", rate, eta_min,
-                    )
+                    if done % 5000 == 0:
+                        f.flush()
+                        elapsed = time.time() - t0
+                        rate = done / elapsed if elapsed > 0 else 0
+                        eta_min = (total - done) / rate / 60 if rate > 0 else 0
+                        logger.info(
+                            "  %s / %s  (%.0f/s,  ETA %.0f min)",
+                            f"{done:,}", f"{total:,}", rate, eta_min,
+                        )
 
-    # Flush remaining
-    _flush_batch(batch)
     elapsed = time.time() - t0
-    logger.info("Done! %s NPIs in %.1f min (%.0f/s)", f"{done:,}", elapsed / 60, done / elapsed)
+    logger.info("CSV done! %s NPIs in %.1f min (%.0f/s)", f"{done:,}", elapsed / 60, done / elapsed)
+
+    # Single bulk-load into DuckDB (brief lock)
+    _bulk_load_csv()
 
     # Build state aggregate
     create_state_summary()
+
+    # Clean up staging CSV
+    try:
+        os.remove(CSV_STAGING)
+        logger.info("Cleaned up staging CSV")
+    except OSError:
+        pass
 
 
 def main():
