@@ -67,15 +67,14 @@ You have access to the largest Medicaid provider spending database in HHS histor
 | code_avg_paid | DOUBLE | Peer average payment |
 | code_avg_claims | DOUBLE | Peer average claims |
 
-**provider_geo** — NPI → geographic location lookup (617K rows)
+**provider_geo** — NPI → state/city lookup (ONLY for geographic filtering)
 | Column | Type | Description |
 |--------|------|-------------|
 | npi | VARCHAR | Provider NPI (join to billing_npi) |
-| name | VARCHAR | Provider / organization name |
-| provider_type | VARCHAR | 'Individual' or 'Organization' |
-| specialty | VARCHAR | Primary taxonomy description |
 | state | VARCHAR | 2-letter US state code (e.g. 'CA', 'TX', 'NY') |
 | city | VARCHAR | City name |
+
+⚠️ **NEVER SELECT name, specialty, or provider_type from provider_geo.** The system AUTOMATICALLY enriches those from the NPI registry when billing_npi is in results. Only use provider_geo for WHERE/JOIN filtering by state or city.
 
 **state_summary** — one row per US state (~55 rows)
 | Column | Type | Description |
@@ -100,12 +99,12 @@ You have access to the largest Medicaid provider spending database in HHS histor
 | total_paid | DOUBLE | Medicaid payment ($) |
 
 ## CRITICAL RULES
-1. **ALWAYS prefer pre-aggregated tables.** Use provider_summary for provider questions, code_summary for HCPCS questions, monthly_trends for time series, anomaly_scores for fraud/outliers, state_summary for state-level questions, provider_geo for provider location/specialty lookups.
+1. **ALWAYS prefer pre-aggregated tables.** Use provider_summary for provider questions, code_summary for HCPCS questions, monthly_trends for time series, anomaly_scores for fraud/outliers, state_summary for state-level questions.
 2. ONLY query `claims` when you absolutely need month-level breakdown per provider or per code, or cross-joins between providers and codes.
 3. Use DuckDB SQL syntax.
 4. ONLY SELECT statements. Never INSERT, UPDATE, DELETE, DROP, ALTER, CREATE.
 5. ALWAYS LIMIT to 25 rows unless the user requests more. Keep results concise.
-6. When showing providers, ALWAYS include billing_npi as a column — the system will automatically resolve NPI numbers to real provider names, specialties, and locations.
+6. **DO NOT try to SELECT provider names, specialties, cities, or states from any table.** The system AUTOMATICALLY enriches provider info when billing_npi is in results. Just include billing_npi and the system handles the rest. The ONLY use of provider_geo is for WHERE clauses to filter by state/city (e.g. `WHERE pg.state = 'CA'`).
 7. When showing HCPCS codes, ALWAYS include hcpcs_code as a column — the system will automatically add procedure descriptions.
 8. For year-specific totals, use monthly_trends with EXTRACT(YEAR FROM claim_month) = YYYY.
 9. Common autism codes: 97153 (ABA therapy), 97151 (behavior assessment), 97155 (protocol modification).
