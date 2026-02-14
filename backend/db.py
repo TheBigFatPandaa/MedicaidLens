@@ -40,7 +40,7 @@ def initialize_database():
             BILLING_PROVIDER_NPI_NUM AS billing_npi,
             SERVICING_PROVIDER_NPI_NUM AS servicing_npi,
             HCPCS_CODE AS hcpcs_code,
-            CAST(CLAIM_FROM_MONTH AS DATE) AS claim_month,
+            CAST(CLAIM_FROM_MONTH || '-01' AS DATE) AS claim_month,
             CAST(TOTAL_UNIQUE_BENEFICIARIES AS INTEGER) AS beneficiaries,
             CAST(TOTAL_CLAIMS AS INTEGER) AS total_claims,
             CAST(TOTAL_PAID AS DOUBLE) AS total_paid

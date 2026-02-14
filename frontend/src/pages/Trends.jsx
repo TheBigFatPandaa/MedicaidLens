@@ -1,15 +1,29 @@
 import { useState, useEffect } from 'react'
 import {
-    AreaChart, Area, LineChart, Line, BarChart, Bar,
-    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+    AreaChart, Area, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { TrendingUp, TrendingDown, Calendar } from 'lucide-react'
+import { TrendingUp, TrendingDown } from 'lucide-react'
 import { fetchTrends, formatCurrency, formatNumber, formatMonth } from '../api'
+
+const TOOLTIP_STYLE = {
+    background: '#161B22',
+    border: '1px solid rgba(48,54,61,0.8)',
+    borderRadius: '8px',
+    color: '#E6EDF3',
+    fontSize: '0.78rem',
+}
+
+const COLORS = {
+    spending: '#58A6FF',
+    claims: '#BC8CFF',
+    providers: '#3FB950',
+}
 
 export default function Trends() {
     const [trends, setTrends] = useState([])
     const [loading, setLoading] = useState(true)
-    const [view, setView] = useState('spending') // spending | claims | providers
+    const [view, setView] = useState('spending')
 
     useEffect(() => {
         fetchTrends()
@@ -54,8 +68,8 @@ export default function Trends() {
     return (
         <>
             <div className="page-header">
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <TrendingUp size={28} style={{ color: 'var(--accent-emerald)' }} />
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <TrendingUp size={24} style={{ color: 'var(--accent-emerald)' }} />
                     Spending Trends
                 </h2>
                 <p>Monthly and yearly Medicaid spending trends across all providers</p>
@@ -71,8 +85,8 @@ export default function Trends() {
                     </div>
                     <div className={`stat-card ${growth.spendGrowth > 0 ? 'rose' : 'emerald'}`}>
                         <div className="stat-label">YoY Growth ({growth.prevYear}→{growth.lastYear})</div>
-                        <div className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {growth.spendGrowth > 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
+                        <div className="stat-value" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            {growth.spendGrowth > 0 ? <TrendingUp size={18} /> : <TrendingDown size={18} />}
                             {growth.spendGrowth.toFixed(1)}%
                         </div>
                         <div className="stat-sub">Average monthly spend change</div>
@@ -107,25 +121,25 @@ export default function Trends() {
                         Monthly {view === 'spending' ? 'Spending' : view === 'claims' ? 'Claims' : 'Active Providers'}
                     </div>
                 </div>
-                <ResponsiveContainer width="100%" height={400}>
+                <ResponsiveContainer width="100%" height={380}>
                     <AreaChart data={chartData}>
                         <defs>
                             <linearGradient id="gradTrend" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor={view === 'spending' ? '#22D3EE' : view === 'claims' ? '#A78BFA' : '#34D399'} stopOpacity={0.3} />
-                                <stop offset="100%" stopColor={view === 'spending' ? '#22D3EE' : view === 'claims' ? '#A78BFA' : '#34D399'} stopOpacity={0} />
+                                <stop offset="0%" stopColor={COLORS[view]} stopOpacity={0.2} />
+                                <stop offset="100%" stopColor={COLORS[view]} stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                        <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
-                        <YAxis tickFormatter={v => view === 'spending' ? formatCurrency(v) : formatNumber(v)} stroke="#64748B" fontSize={11} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                        <XAxis dataKey="month" stroke="#484F58" fontSize={11} />
+                        <YAxis tickFormatter={v => view === 'spending' ? formatCurrency(v) : formatNumber(v)} stroke="#484F58" fontSize={11} />
                         <Tooltip
-                            contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px', color: '#F1F5F9' }}
+                            contentStyle={TOOLTIP_STYLE}
                             formatter={(v) => [view === 'spending' ? formatCurrency(v) : formatNumber(v), view === 'spending' ? 'Spending' : view === 'claims' ? 'Claims' : 'Providers']}
                         />
                         <Area
                             type="monotone"
                             dataKey={view}
-                            stroke={view === 'spending' ? '#22D3EE' : view === 'claims' ? '#A78BFA' : '#34D399'}
+                            stroke={COLORS[view]}
                             strokeWidth={2}
                             fill="url(#gradTrend)"
                         />
@@ -139,16 +153,13 @@ export default function Trends() {
                     <div className="card-header">
                         <div className="card-title">Year-over-Year Comparison</div>
                     </div>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height={280}>
                         <BarChart data={yearlyArr}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                            <XAxis dataKey="year" stroke="#64748B" fontSize={12} />
-                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#64748B" fontSize={11} />
-                            <Tooltip
-                                contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px', color: '#F1F5F9' }}
-                                formatter={(v) => [formatCurrency(v), 'Total Spending']}
-                            />
-                            <Bar dataKey="spending" fill="#A78BFA" radius={[6, 6, 0, 0]} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                            <XAxis dataKey="year" stroke="#484F58" fontSize={12} />
+                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={11} />
+                            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatCurrency(v), 'Total Spending']} />
+                            <Bar dataKey="spending" fill="#BC8CFF" radius={[6, 6, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

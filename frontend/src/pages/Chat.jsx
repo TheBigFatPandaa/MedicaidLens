@@ -1,18 +1,18 @@
 import { useState, useRef, useEffect } from 'react'
 import {
-    BarChart, Bar, LineChart, Line, AreaChart, Area,
+    BarChart, Bar, AreaChart, Area,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
-import { Send, Bot, User, Sparkles, Zap, Search, TrendingUp, AlertTriangle } from 'lucide-react'
-import { sendChatMessage, formatCurrency, formatNumber, formatMonth } from '../api'
+import { Send, Bot, User, Sparkles, Zap, Search, TrendingUp, AlertTriangle, Database, DollarSign } from 'lucide-react'
+import { sendChatMessage, fetchOverview, formatCurrency, formatNumber, formatMonth } from '../api'
 
 const SUGGESTED_QUERIES = [
-    { icon: <Zap size={14} />, text: 'What is the total Medicaid spending in 2023?' },
-    { icon: <Search size={14} />, text: 'Show me the top 10 providers by total spending' },
-    { icon: <TrendingUp size={14} />, text: 'What are the spending trends for autism therapy codes (97153)?' },
-    { icon: <AlertTriangle size={14} />, text: 'Find providers with unusually high claim volumes' },
-    { icon: <Search size={14} />, text: 'Which HCPCS codes have the highest per-claim cost?' },
-    { icon: <TrendingUp size={14} />, text: 'Show spending growth rate by year' },
+    { icon: <DollarSign size={15} />, text: 'What is the total Medicaid spending in 2023?' },
+    { icon: <Search size={15} />, text: 'Show me the top 10 providers by total spending' },
+    { icon: <TrendingUp size={15} />, text: 'What are the spending trends for autism therapy codes (97153)?' },
+    { icon: <AlertTriangle size={15} />, text: 'Find providers with unusually high claim volumes' },
+    { icon: <Database size={15} />, text: 'Which HCPCS codes have the highest per-claim cost?' },
+    { icon: <TrendingUp size={15} />, text: 'Show spending growth rate by year' },
 ]
 
 function ResultTable({ data }) {
@@ -58,36 +58,32 @@ function ResultChart({ data, config, type }) {
             : row[config.x],
     }))
 
-    const commonProps = {
-        data: chartData,
-    }
-
     const renderChart = () => {
         switch (type) {
             case 'bar_chart':
                 return (
-                    <BarChart {...commonProps}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                        <XAxis dataKey={config.x} stroke="#64748B" fontSize={11} />
-                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#64748B" fontSize={11} />
-                        <Tooltip contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px', color: '#F1F5F9' }} />
-                        <Bar dataKey={config.y} fill="#A78BFA" radius={[4, 4, 0, 0]} />
+                    <BarChart data={chartData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                        <XAxis dataKey={config.x} stroke="#484F58" fontSize={11} />
+                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#484F58" fontSize={11} />
+                        <Tooltip contentStyle={{ background: '#161B22', border: '1px solid rgba(48,54,61,0.8)', borderRadius: '8px', color: '#E6EDF3', fontSize: '0.8rem' }} />
+                        <Bar dataKey={config.y} fill="#BC8CFF" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 )
             case 'line_chart':
                 return (
-                    <AreaChart {...commonProps}>
+                    <AreaChart data={chartData}>
                         <defs>
                             <linearGradient id="gradChat" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.3} />
-                                <stop offset="100%" stopColor="#22D3EE" stopOpacity={0} />
+                                <stop offset="0%" stopColor="#58A6FF" stopOpacity={0.25} />
+                                <stop offset="100%" stopColor="#58A6FF" stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                        <XAxis dataKey={config.x} stroke="#64748B" fontSize={11} />
-                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#64748B" fontSize={11} />
-                        <Tooltip contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px', color: '#F1F5F9' }} />
-                        <Area type="monotone" dataKey={config.y} stroke="#22D3EE" strokeWidth={2} fill="url(#gradChat)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                        <XAxis dataKey={config.x} stroke="#484F58" fontSize={11} />
+                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#484F58" fontSize={11} />
+                        <Tooltip contentStyle={{ background: '#161B22', border: '1px solid rgba(48,54,61,0.8)', borderRadius: '8px', color: '#E6EDF3', fontSize: '0.8rem' }} />
+                        <Area type="monotone" dataKey={config.y} stroke="#58A6FF" strokeWidth={2} fill="url(#gradChat)" />
                     </AreaChart>
                 )
             default:
@@ -96,13 +92,13 @@ function ResultChart({ data, config, type }) {
     }
 
     return (
-        <div style={{ margin: '16px 0' }}>
+        <div style={{ margin: '12px 0' }}>
             {config.title && (
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: '8px', fontWeight: 600 }}>
                     {config.title}
                 </div>
             )}
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={260}>
                 {renderChart()}
             </ResponsiveContainer>
         </div>
@@ -115,7 +111,7 @@ function ChatMessage({ message }) {
     return (
         <div className={`chat-message ${isUser ? 'user' : 'assistant'}`}>
             <div className="chat-avatar">
-                {isUser ? <User size={18} /> : <Bot size={18} />}
+                {isUser ? <User size={16} /> : <Bot size={16} />}
             </div>
             <div className="chat-bubble">
                 {!isUser && message.thinking && (
@@ -135,7 +131,7 @@ function ChatMessage({ message }) {
                 )}
 
                 {!isUser && message.visualization === 'number' && message.results?.[0] && (
-                    <div style={{ fontSize: '2rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', margin: '16px 0' }}>
+                    <div style={{ fontSize: '1.8rem', fontWeight: 800, fontFamily: 'var(--font-mono)', color: 'var(--accent-cyan)', margin: '12px 0', letterSpacing: '-0.02em' }}>
                         {Object.values(message.results[0]).map((v, i) => (
                             <span key={i}>{typeof v === 'number' && v > 1000 ? formatCurrency(v) : v}</span>
                         ))}
@@ -147,8 +143,8 @@ function ChatMessage({ message }) {
                 )}
 
                 {!isUser && message.error && (
-                    <div style={{ color: 'var(--mirch)', fontSize: '0.85rem', marginTop: '8px' }}>
-                        ⚠️ {message.error}
+                    <div style={{ color: 'var(--accent-rose)', fontSize: '0.82rem', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <AlertTriangle size={14} /> {message.error}
                     </div>
                 )}
 
@@ -162,6 +158,7 @@ export default function Chat() {
     const [messages, setMessages] = useState([])
     const [input, setInput] = useState('')
     const [loading, setLoading] = useState(false)
+    const [overview, setOverview] = useState(null)
     const messagesEndRef = useRef(null)
 
     const scrollToBottom = () => {
@@ -169,6 +166,13 @@ export default function Chat() {
     }
 
     useEffect(() => { scrollToBottom() }, [messages])
+
+    // Fetch overview stats for the hero
+    useEffect(() => {
+        fetchOverview()
+            .then(data => setOverview(data))
+            .catch(() => { })
+    }, [])
 
     const handleSend = async (text) => {
         const messageText = text || input.trim()
@@ -211,54 +215,71 @@ export default function Chat() {
 
     return (
         <div className="chat-container">
-            <div className="page-header">
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Sparkles size={28} style={{ color: 'var(--accent-cyan)' }} />
-                    AI Data Analyst
-                </h2>
-                <p>Ask questions about Medicaid provider spending in natural language</p>
-            </div>
-
-            <div className="chat-messages">
-                {messages.length === 0 && (
-                    <div className="empty-state" style={{ marginTop: '60px' }}>
-                        <Sparkles size={64} style={{ color: 'var(--accent-cyan)', opacity: 0.6 }} />
-                        <h3 style={{ marginTop: '16px' }}>Ask me anything about Medicaid data</h3>
-                        <p style={{ maxWidth: '480px', margin: '0 auto', lineHeight: '1.7' }}>
-                            I can query the largest Medicaid dataset in HHS history — provider spending, billing codes,
-                            fraud detection, and more. Try one of the suggestions below.
-                        </p>
-                        <div className="suggested-queries" style={{ justifyContent: 'center', marginTop: '24px' }}>
-                            {SUGGESTED_QUERIES.map((sq, i) => (
-                                <button
-                                    key={i}
-                                    className="suggested-query"
-                                    onClick={() => handleSend(sq.text)}
-                                >
-                                    {sq.icon} {sq.text}
-                                </button>
-                            ))}
-                        </div>
+            {messages.length === 0 ? (
+                <div className="chat-empty-state">
+                    <div className="chat-hero-icon">
+                        <Sparkles size={32} color="white" />
                     </div>
-                )}
+                    <h2 className="chat-hero-title">Ask anything about Medicaid</h2>
+                    <p className="chat-hero-subtitle">
+                        Query the largest Medicaid dataset in HHS history — provider spending, billing codes,
+                        fraud patterns, and more — using natural language.
+                    </p>
 
-                {messages.map((msg, i) => (
-                    <ChatMessage key={i} message={msg} />
-                ))}
-
-                {loading && (
-                    <div className="chat-message assistant">
-                        <div className="chat-avatar"><Bot size={18} /></div>
-                        <div className="chat-bubble">
-                            <div className="typing-indicator">
-                                <span /><span /><span />
+                    {overview && (
+                        <div className="chat-hero-stats">
+                            <div className="chat-hero-stat">
+                                <div className="value">{formatCurrency(overview.total_paid)}</div>
+                                <div className="label">Total Spending</div>
+                            </div>
+                            <div className="chat-hero-stat">
+                                <div className="value">{formatNumber(overview.total_providers)}</div>
+                                <div className="label">Providers</div>
+                            </div>
+                            <div className="chat-hero-stat">
+                                <div className="value">{formatNumber(overview.total_rows)}</div>
+                                <div className="label">Data Rows</div>
+                            </div>
+                            <div className="chat-hero-stat">
+                                <div className="value">{overview.total_codes?.toLocaleString()}</div>
+                                <div className="label">HCPCS Codes</div>
                             </div>
                         </div>
-                    </div>
-                )}
+                    )}
 
-                <div ref={messagesEndRef} />
-            </div>
+                    <div className="suggested-grid">
+                        {SUGGESTED_QUERIES.map((sq, i) => (
+                            <button
+                                key={i}
+                                className="suggested-card"
+                                onClick={() => handleSend(sq.text)}
+                            >
+                                <div className="sq-icon">{sq.icon}</div>
+                                <div className="sq-text">{sq.text}</div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+                <div className="chat-messages">
+                    {messages.map((msg, i) => (
+                        <ChatMessage key={i} message={msg} />
+                    ))}
+
+                    {loading && (
+                        <div className="chat-message assistant">
+                            <div className="chat-avatar"><Bot size={16} /></div>
+                            <div className="chat-bubble">
+                                <div className="typing-indicator">
+                                    <span /><span /><span />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div ref={messagesEndRef} />
+                </div>
+            )}
 
             <div className="chat-input-container">
                 <div className="chat-input-wrapper">
@@ -276,7 +297,7 @@ export default function Chat() {
                         onClick={() => handleSend()}
                         disabled={!input.trim() || loading}
                     >
-                        <Send size={18} />
+                        <Send size={16} />
                     </button>
                 </div>
 

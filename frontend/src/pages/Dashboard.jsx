@@ -4,12 +4,20 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import {
-    DollarSign, Users, FileText, Activity, Search,
+    DollarSign, Users, FileText, Activity,
 } from 'lucide-react'
 import {
     fetchOverview, fetchTrends, fetchTopProviders, fetchTopCodes,
     formatCurrency, formatNumber, formatMonth,
 } from '../api'
+
+const TOOLTIP_STYLE = {
+    background: '#161B22',
+    border: '1px solid rgba(48,54,61,0.8)',
+    borderRadius: '8px',
+    color: '#E6EDF3',
+    fontSize: '0.78rem',
+}
 
 function ProviderModal({ npi, onClose }) {
     const [data, setData] = useState(null)
@@ -27,10 +35,10 @@ function ProviderModal({ npi, onClose }) {
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <div>
-                        <h3>{data?.provider?.provider_name || npi}</h3>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                            NPI: {npi} {data?.provider?.specialty && `• ${data.provider.specialty}`}
-                            {data?.provider?.state && ` • ${data.provider.city}, ${data.provider.state}`}
+                        <h3 style={{ fontSize: '1.1rem', fontWeight: 800 }}>{data?.provider?.provider_name || npi}</h3>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            NPI: {npi} {data?.provider?.specialty && `· ${data.provider.specialty}`}
+                            {data?.provider?.state && ` · ${data.provider.city}, ${data.provider.state}`}
                         </div>
                     </div>
                     <button className="modal-close" onClick={onClose}>✕</button>
@@ -40,7 +48,7 @@ function ProviderModal({ npi, onClose }) {
                         <div className="loading-spinner"><div className="spinner" /></div>
                     ) : data ? (
                         <>
-                            <div className="stats-grid" style={{ marginBottom: '24px' }}>
+                            <div className="stats-grid" style={{ marginBottom: '20px' }}>
                                 <div className="stat-card cyan">
                                     <div className="stat-label">Total Paid</div>
                                     <div className="stat-value">{formatCurrency(data.provider.total_paid)}</div>
@@ -60,17 +68,13 @@ function ProviderModal({ npi, onClose }) {
                                     <div className="card-header">
                                         <div className="card-title">Spending Trend</div>
                                     </div>
-                                    <ResponsiveContainer width="100%" height={250}>
+                                    <ResponsiveContainer width="100%" height={220}>
                                         <AreaChart data={data.trend}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                                            <XAxis dataKey="claim_month" tickFormatter={formatMonth} stroke="#64748B" fontSize={11} />
-                                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#64748B" fontSize={11} />
-                                            <Tooltip
-                                                contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px' }}
-                                                formatter={(v) => [formatCurrency(v), 'Paid']}
-                                                labelFormatter={formatMonth}
-                                            />
-                                            <Area type="monotone" dataKey="total_paid" stroke="#22D3EE" fill="rgba(34,211,238,0.1)" />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                                            <XAxis dataKey="claim_month" tickFormatter={formatMonth} stroke="#484F58" fontSize={10} />
+                                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={10} />
+                                            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatCurrency(v), 'Paid']} labelFormatter={formatMonth} />
+                                            <Area type="monotone" dataKey="total_paid" stroke="#58A6FF" fill="rgba(88,166,255,0.08)" />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -156,25 +160,25 @@ export default function Dashboard() {
             {overview && (
                 <div className="stats-grid">
                     <div className="stat-card cyan">
-                        <div className="stat-icon"><DollarSign size={20} /></div>
+                        <div className="stat-icon"><DollarSign size={18} /></div>
                         <div className="stat-label">Total Paid</div>
                         <div className="stat-value">{formatCurrency(overview.total_paid)}</div>
                         <div className="stat-sub">{overview.date_from} → {overview.date_to}</div>
                     </div>
                     <div className="stat-card violet">
-                        <div className="stat-icon"><Users size={20} /></div>
+                        <div className="stat-icon"><Users size={18} /></div>
                         <div className="stat-label">Providers</div>
                         <div className="stat-value">{formatNumber(overview.total_providers)}</div>
                         <div className="stat-sub">Unique billing NPIs</div>
                     </div>
                     <div className="stat-card emerald">
-                        <div className="stat-icon"><FileText size={20} /></div>
+                        <div className="stat-icon"><FileText size={18} /></div>
                         <div className="stat-label">Total Claims</div>
                         <div className="stat-value">{formatNumber(overview.total_claims)}</div>
                         <div className="stat-sub">{formatNumber(overview.total_rows)} data rows</div>
                     </div>
                     <div className="stat-card amber">
-                        <div className="stat-icon"><Activity size={20} /></div>
+                        <div className="stat-icon"><Activity size={18} /></div>
                         <div className="stat-label">HCPCS Codes</div>
                         <div className="stat-value">{formatNumber(overview.total_codes)}</div>
                         <div className="stat-sub">Unique billing codes</div>
@@ -189,22 +193,19 @@ export default function Dashboard() {
                         <div className="card-title">Monthly Medicaid Spending</div>
                         <div className="card-subtitle">Total paid across all providers</div>
                     </div>
-                    <ResponsiveContainer width="100%" height={320}>
+                    <ResponsiveContainer width="100%" height={300}>
                         <AreaChart data={chartData}>
                             <defs>
                                 <linearGradient id="gradCyan" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.3} />
-                                    <stop offset="100%" stopColor="#22D3EE" stopOpacity={0} />
+                                    <stop offset="0%" stopColor="#58A6FF" stopOpacity={0.2} />
+                                    <stop offset="100%" stopColor="#58A6FF" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                            <XAxis dataKey="month" stroke="#64748B" fontSize={11} />
-                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#64748B" fontSize={11} />
-                            <Tooltip
-                                contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px', color: '#F1F5F9' }}
-                                formatter={(v) => [formatCurrency(v), 'Spending']}
-                            />
-                            <Area type="monotone" dataKey="spending" stroke="#22D3EE" strokeWidth={2} fill="url(#gradCyan)" />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                            <XAxis dataKey="month" stroke="#484F58" fontSize={11} />
+                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={11} />
+                            <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatCurrency(v), 'Spending']} />
+                            <Area type="monotone" dataKey="spending" stroke="#58A6FF" strokeWidth={2} fill="url(#gradCyan)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
@@ -214,9 +215,10 @@ export default function Dashboard() {
             <div className="charts-grid">
                 <div className="card">
                     <div className="card-header">
-                        <div className="card-title">Top 10 Providers by Spending</div>
+                        <div className="card-title">Top 10 Providers</div>
+                        <div className="card-subtitle">By total spending</div>
                     </div>
-                    <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+                    <div style={{ maxHeight: '380px', overflow: 'auto' }}>
                         <table className="data-table">
                             <thead>
                                 <tr>
@@ -229,11 +231,11 @@ export default function Dashboard() {
                                 {topProviders.map(p => (
                                     <tr key={p.billing_npi} className="clickable" onClick={() => setSelectedNPI(p.billing_npi)}>
                                         <td>
-                                            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                            <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
                                                 {p.provider_name || p.billing_npi}
                                             </div>
-                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                {p.specialty && `${p.specialty} • `}NPI: {p.billing_npi}
+                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                                                {p.specialty && `${p.specialty} · `}NPI: {p.billing_npi}
                                             </div>
                                         </td>
                                         <td className="currency text-right">{formatCurrency(p.total_paid)}</td>
@@ -247,22 +249,23 @@ export default function Dashboard() {
 
                 <div className="card">
                     <div className="card-header">
-                        <div className="card-title">Top 10 HCPCS Codes by Spending</div>
+                        <div className="card-title">Top 10 HCPCS Codes</div>
+                        <div className="card-subtitle">By total spending</div>
                     </div>
-                    <ResponsiveContainer width="100%" height={400}>
+                    <ResponsiveContainer width="100%" height={380}>
                         <BarChart data={topCodes.slice(0, 10)} layout="vertical" margin={{ left: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#2A3150" />
-                            <XAxis type="number" tickFormatter={v => formatCurrency(v)} stroke="#64748B" fontSize={11} />
-                            <YAxis type="category" dataKey="hcpcs_code" stroke="#64748B" fontSize={11} width={60} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
+                            <XAxis type="number" tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={10} />
+                            <YAxis type="category" dataKey="hcpcs_code" stroke="#484F58" fontSize={11} width={60} />
                             <Tooltip
-                                contentStyle={{ background: '#1A1F35', border: '1px solid #2A3150', borderRadius: '8px', color: '#F1F5F9' }}
+                                contentStyle={TOOLTIP_STYLE}
                                 formatter={(v) => [formatCurrency(v), 'Total Paid']}
                                 labelFormatter={(label) => {
                                     const code = topCodes.find(c => c.hcpcs_code === label)
                                     return `${label} — ${code?.description || ''}`
                                 }}
                             />
-                            <Bar dataKey="total_paid" fill="#A78BFA" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="total_paid" fill="#BC8CFF" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

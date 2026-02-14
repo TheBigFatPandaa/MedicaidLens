@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { AlertTriangle, Search, ExternalLink, Shield, ShieldAlert, ShieldX } from 'lucide-react'
+import { AlertTriangle, Search, Shield, ShieldAlert, ShieldX } from 'lucide-react'
 import { fetchAnomalies, formatCurrency, formatNumber } from '../api'
 
 function ZScoreBar({ score }) {
     const maxWidth = Math.min(Math.abs(score) / 15 * 100, 100)
     const cls = Math.abs(score) > 10 ? 'z-high' : 'z-medium'
     return (
-        <div className="z-score-bar" style={{ width: '100px' }}>
+        <div className="z-score-bar" style={{ width: '80px' }}>
             <div className={`z-score-fill ${cls}`} style={{ width: `${maxWidth}%` }} />
         </div>
     )
@@ -14,9 +14,9 @@ function ZScoreBar({ score }) {
 
 function ThreatLevel({ score }) {
     const abs = Math.abs(score)
-    if (abs > 10) return <span className="badge badge-danger"><ShieldX size={12} /> Critical</span>
-    if (abs > 7) return <span className="badge badge-warning"><ShieldAlert size={12} /> High</span>
-    return <span className="badge badge-info"><Shield size={12} /> Elevated</span>
+    if (abs > 10) return <span className="badge badge-danger"><ShieldX size={11} /> Critical</span>
+    if (abs > 7) return <span className="badge badge-warning"><ShieldAlert size={11} /> High</span>
+    return <span className="badge badge-info"><Shield size={11} /> Elevated</span>
 }
 
 export default function Anomalies() {
@@ -38,8 +38,8 @@ export default function Anomalies() {
     return (
         <>
             <div className="page-header">
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <AlertTriangle size={28} style={{ color: 'var(--accent-rose)' }} />
+                <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <AlertTriangle size={24} style={{ color: 'var(--accent-rose)' }} />
                     Anomaly Detection
                 </h2>
                 <p>Statistical outliers in provider billing — potential fraud, waste, or abuse indicators</p>
@@ -48,35 +48,35 @@ export default function Anomalies() {
             <div className="card mb-lg">
                 <div className="anomaly-header">
                     <div className="filter-bar">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Min Z-Score:</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Min Z-Score:</label>
                             <input
                                 className="filter-input"
                                 type="number"
                                 value={minZ}
                                 onChange={e => setMinZ(Number(e.target.value))}
                                 min={2} max={20} step={0.5}
-                                style={{ width: '80px' }}
+                                style={{ width: '72px', minWidth: '72px' }}
                             />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>HCPCS Code:</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>HCPCS Code:</label>
                             <input
                                 className="filter-input"
                                 type="text"
                                 placeholder="e.g., 97153"
                                 value={codeFilter}
                                 onChange={e => setCodeFilter(e.target.value)}
-                                style={{ width: '120px' }}
+                                style={{ width: '110px', minWidth: '110px' }}
                             />
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Limit:</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <label style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>Limit:</label>
                             <select
                                 className="filter-input"
                                 value={limit}
                                 onChange={e => setLimit(Number(e.target.value))}
-                                style={{ width: '80px' }}
+                                style={{ width: '72px', minWidth: '72px' }}
                             >
                                 <option value={25}>25</option>
                                 <option value={50}>50</option>
@@ -84,8 +84,8 @@ export default function Anomalies() {
                                 <option value={200}>200</option>
                             </select>
                         </div>
-                        <button className="filter-btn active" onClick={loadData}>
-                            <Search size={14} /> Search
+                        <button className="filter-btn active" onClick={loadData} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Search size={13} /> Search
                         </button>
                     </div>
                 </div>
@@ -94,10 +94,10 @@ export default function Anomalies() {
                     <div className="loading-spinner"><div className="spinner" /></div>
                 ) : (
                     <>
-                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '12px', fontWeight: 600 }}>
                             Found {anomalies.length} anomalous provider-code combinations
                         </div>
-                        <div style={{ maxHeight: '600px', overflow: 'auto' }}>
+                        <div style={{ maxHeight: '560px', overflow: 'auto' }}>
                             <table className="data-table">
                                 <thead>
                                     <tr>
@@ -115,32 +115,32 @@ export default function Anomalies() {
                                         <tr key={i}>
                                             <td><ThreatLevel score={a.z_score_paid} /></td>
                                             <td>
-                                                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                <div style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.82rem' }}>
                                                     {a.provider_name || a.billing_npi}
                                                 </div>
-                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                                    {a.specialty && `${a.specialty} • `}
-                                                    {a.state && `${a.state} • `}
+                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '1px' }}>
+                                                    {a.specialty && `${a.specialty} · `}
+                                                    {a.state && `${a.state} · `}
                                                     NPI: {a.billing_npi}
                                                 </div>
                                             </td>
                                             <td>
-                                                <div className="mono">{a.hcpcs_code}</div>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{a.description}</div>
+                                                <div className="mono" style={{ fontWeight: 600 }}>{a.hcpcs_code}</div>
+                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{a.description}</div>
                                             </td>
                                             <td className="currency text-right">{formatCurrency(a.total_paid)}</td>
                                             <td className="mono text-right">{formatNumber(a.total_claims)}</td>
                                             <td className="text-right">
-                                                <span style={{ color: 'var(--accent-rose)', fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                                                <span style={{ color: 'var(--accent-rose)', fontFamily: 'var(--font-mono)', fontWeight: 700, fontSize: '0.82rem' }}>
                                                     {a.code_avg_paid > 0 ? `${(a.total_paid / a.code_avg_paid).toFixed(0)}×` : '—'}
                                                 </span>
-                                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
                                                     avg: {formatCurrency(a.code_avg_paid)}
                                                 </div>
                                             </td>
                                             <td>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                    <span className="mono" style={{ minWidth: '45px', color: Math.abs(a.z_score_paid) > 10 ? 'var(--mirch)' : 'var(--haldi)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <span className="mono" style={{ minWidth: '40px', color: Math.abs(a.z_score_paid) > 10 ? 'var(--accent-rose)' : 'var(--accent-amber)', fontWeight: 700, fontSize: '0.82rem' }}>
                                                         {a.z_score_paid.toFixed(1)}
                                                     </span>
                                                     <ZScoreBar score={a.z_score_paid} />
