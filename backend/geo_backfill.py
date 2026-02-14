@@ -129,56 +129,65 @@ async def _fetch_npi(session, npi, semaphore):
         return _parse_npi_result(npi, {})
 
 
-def _flush_batch(con, batch):
-    """Write a batch of results to provider_geo."""
+def _flush_batch(batch):
+    """Open connection, write a batch, close connection immediately."""
     if not batch:
         return
-    con.executemany(
-        """INSERT OR REPLACE INTO provider_geo (npi, name, provider_type, specialty, state, city)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        [(r["npi"], r["name"], r["provider_type"], r["specialty"],
-          r["state"], r["city"]) for r in batch],
-    )
+    con = duckdb.connect(DB_PATH, read_only=False)
+    try:
+        con.executemany(
+            """INSERT OR REPLACE INTO provider_geo (npi, name, provider_type, specialty, state, city)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            [(r["npi"], r["name"], r["provider_type"], r["specialty"],
+              r["state"], r["city"]) for r in batch],
+        )
+    finally:
+        con.close()
 
 
-def create_state_summary(con):
+def create_state_summary():
     """Build state_summary aggregate table from provider_geo + provider_summary."""
     logger.info("Creating state_summary table...")
-    con.execute("DROP TABLE IF EXISTS state_summary")
-    con.execute("""
-        CREATE TABLE state_summary AS
-        SELECT
-            pg.state,
-            COUNT(DISTINCT ps.billing_npi) AS providers,
-            SUM(ps.total_claims)           AS total_claims,
-            SUM(ps.total_paid)             AS total_paid,
-            SUM(ps.total_beneficiaries)    AS total_beneficiaries
-        FROM provider_summary ps
-        JOIN provider_geo pg ON ps.billing_npi = pg.npi
-        WHERE pg.state != '' AND pg.state IS NOT NULL
-        GROUP BY pg.state
-        ORDER BY total_paid DESC
-    """)
-    rows = con.execute("SELECT COUNT(*) FROM state_summary").fetchone()[0]
-    logger.info("state_summary created with %d states", rows)
-    # Show top 5
-    top = con.execute(
-        "SELECT state, providers, total_paid FROM state_summary LIMIT 5"
-    ).fetchall()
-    for s, p, t in top:
-        logger.info("  %s — %s providers, $%s", s, f"{p:,}", f"{t:,.0f}")
+    con = duckdb.connect(DB_PATH, read_only=False)
+    try:
+        con.execute("DROP TABLE IF EXISTS state_summary")
+        con.execute("""
+            CREATE TABLE state_summary AS
+            SELECT
+                pg.state,
+                COUNT(DISTINCT ps.billing_npi) AS providers,
+                SUM(ps.total_claims)           AS total_claims,
+                SUM(ps.total_paid)             AS total_paid,
+                SUM(ps.total_beneficiaries)    AS total_beneficiaries
+            FROM provider_summary ps
+            JOIN provider_geo pg ON ps.billing_npi = pg.npi
+            WHERE pg.state != '' AND pg.state IS NOT NULL
+            GROUP BY pg.state
+            ORDER BY total_paid DESC
+        """)
+        rows = con.execute("SELECT COUNT(*) FROM state_summary").fetchone()[0]
+        logger.info("state_summary created with %d states", rows)
+        # Show top 5
+        top = con.execute(
+            "SELECT state, providers, total_paid FROM state_summary LIMIT 5"
+        ).fetchall()
+        for s, p, t in top:
+            logger.info("  %s — %s providers, $%s", s, f"{p:,}", f"{t:,.0f}")
+    finally:
+        con.close()
 
 
 async def run(limit=None):
+    # Brief connection to ensure table exists and get pending NPIs
     con = duckdb.connect(DB_PATH, read_only=False)
     _ensure_table(con)
-
     npis = _get_pending_npis(con, limit)
     total = len(npis)
+    con.close()  # Release lock immediately
+
     if total == 0:
         logger.info("All NPIs already resolved! Rebuilding state_summary...")
-        create_state_summary(con)
-        con.close()
+        create_state_summary()
         return
 
     logger.info("Resolving %s NPIs (concurrency=%d)...", f"{total:,}", CONCURRENCY)
@@ -200,7 +209,7 @@ async def run(limit=None):
                 done += 1
 
                 if len(batch) >= BATCH_SAVE:
-                    _flush_batch(con, batch)
+                    _flush_batch(batch)  # Opens/closes connection briefly
                     batch = []
 
                 if done % 1000 == 0:
@@ -213,13 +222,12 @@ async def run(limit=None):
                     )
 
     # Flush remaining
-    _flush_batch(con, batch)
+    _flush_batch(batch)
     elapsed = time.time() - t0
     logger.info("Done! %s NPIs in %.1f min (%.0f/s)", f"{done:,}", elapsed / 60, done / elapsed)
 
     # Build state aggregate
-    create_state_summary(con)
-    con.close()
+    create_state_summary()
 
 
 def main():

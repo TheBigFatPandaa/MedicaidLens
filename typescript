@@ -1,0 +1,6 @@
+Script started on Fri Feb 13 18:24:57 2026
+[1m[7m%[27m[1m[0m                                                                                            [0m[27m[24m[Jankithome@IT005358 MedicaidHHS % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                            [0m[27m[24m[Jankithome@IT005358 MedicaidHHS % [K[?2004hggcloud compute ssh medicaidlens --zone=us-central1-a --comm [Kaand="printf '#!/bin/bash\ncd /home/ankithome/MedicaidLens\nsource .venv/bin/activate\nexport [K  DATABASE_PATH=data/medicaid.duckdb\npython -m backend.geo_backfill\n' > /home/ankithome/run [K__backfill.sh && chmod +x /home/ankithome/run_backfill.sh && cat /home/ankithome/run_backfill [K..sh" 2>&1[?2004l
+zsh: event not found: /bin/bash\ncd
+[1m[7m%[27m[1m[0m                                                                                            [0m[27m[24m[Jankithome@IT005358 MedicaidHHS % [K[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                            [0m[27m[24m[Jankithome@IT005358 MedicaidHHS % [K[?2004h
