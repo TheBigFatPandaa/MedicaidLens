@@ -7,11 +7,12 @@ import { FileCode2, Search, ArrowUpDown } from 'lucide-react'
 import { fetchTopCodes, fetchCodeDetail, formatCurrency, formatNumber, formatMonth } from '../api'
 
 const TOOLTIP_STYLE = {
-    background: '#161B22',
-    border: '1px solid rgba(48,54,61,0.8)',
+    background: '#fff',
+    border: '1px solid #E2E8F0',
     borderRadius: '8px',
-    color: '#E6EDF3',
+    color: '#1E293B',
     fontSize: '0.78rem',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
 }
 
 function CodeDetailPanel({ code, onClose }) {
@@ -60,11 +61,11 @@ function CodeDetailPanel({ code, onClose }) {
                             <div className="card-header"><div className="card-title">Monthly Spending Trend</div></div>
                             <ResponsiveContainer width="100%" height={220}>
                                 <AreaChart data={data.trend}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                                    <XAxis dataKey="claim_month" tickFormatter={formatMonth} stroke="#484F58" fontSize={10} />
-                                    <YAxis tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={10} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(226,232,240,0.8)" />
+                                    <XAxis dataKey="claim_month" tickFormatter={formatMonth} stroke="#94A3B8" fontSize={10} />
+                                    <YAxis tickFormatter={v => formatCurrency(v)} stroke="#94A3B8" fontSize={10} />
                                     <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatCurrency(v), 'Paid']} labelFormatter={formatMonth} />
-                                    <Area type="monotone" dataKey="total_paid" stroke="#BC8CFF" fill="rgba(188,140,255,0.08)" />
+                                    <Area type="monotone" dataKey="total_paid" stroke="#0070DD" fill="rgba(0,112,221,0.08)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
@@ -179,9 +180,9 @@ export default function CodeExplorer() {
                 </div>
                 <ResponsiveContainer width="100%" height={380}>
                     <BarChart data={filtered.slice(0, 20)} layout="vertical" margin={{ left: 80 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                        <XAxis type="number" tickFormatter={v => sortBy === 'total_paid' ? formatCurrency(v) : formatNumber(v)} stroke="#484F58" fontSize={10} />
-                        <YAxis type="category" dataKey="hcpcs_code" stroke="#484F58" fontSize={11} width={70} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(226,232,240,0.8)" />
+                        <XAxis type="number" tickFormatter={v => sortBy === 'total_paid' ? formatCurrency(v) : formatNumber(v)} stroke="#94A3B8" fontSize={10} />
+                        <YAxis type="category" dataKey="hcpcs_code" stroke="#94A3B8" fontSize={11} width={70} />
                         <Tooltip
                             contentStyle={TOOLTIP_STYLE}
                             formatter={(v) => [sortBy === 'total_paid' ? formatCurrency(v) : formatNumber(v)]}
@@ -190,7 +191,7 @@ export default function CodeExplorer() {
                                 return `${label} — ${c?.description || ''}`
                             }}
                         />
-                        <Bar dataKey={sortBy} fill="#BC8CFF" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey={sortBy} fill="#0070DD" radius={[0, 4, 4, 0]} />
                     </BarChart>
                 </ResponsiveContainer>
             </div>

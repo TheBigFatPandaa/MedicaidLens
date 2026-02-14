@@ -183,11 +183,11 @@ function ResultChart({ data, config, type }) {
             case 'bar_chart':
                 return (
                     <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                        <XAxis dataKey={config.x} stroke="#484F58" fontSize={11} />
-                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#484F58" fontSize={11} />
-                        <Tooltip contentStyle={{ background: '#161B22', border: '1px solid rgba(48,54,61,0.8)', borderRadius: '8px', color: '#E6EDF3', fontSize: '0.8rem' }} />
-                        <Bar dataKey={config.y} fill="#BC8CFF" radius={[4, 4, 0, 0]} />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis dataKey={config.x} stroke="#94A3B8" fontSize={11} />
+                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#94A3B8" fontSize={11} />
+                        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', color: '#1E293B', fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }} />
+                        <Bar dataKey={config.y} fill="#0070DD" radius={[4, 4, 0, 0]} />
                     </BarChart>
                 )
             case 'line_chart':
@@ -195,15 +195,15 @@ function ResultChart({ data, config, type }) {
                     <AreaChart data={chartData}>
                         <defs>
                             <linearGradient id="gradChat" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#58A6FF" stopOpacity={0.25} />
-                                <stop offset="100%" stopColor="#58A6FF" stopOpacity={0} />
+                                <stop offset="0%" stopColor="#0070DD" stopOpacity={0.15} />
+                                <stop offset="100%" stopColor="#0070DD" stopOpacity={0} />
                             </linearGradient>
                         </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                        <XAxis dataKey={config.x} stroke="#484F58" fontSize={11} />
-                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#484F58" fontSize={11} />
-                        <Tooltip contentStyle={{ background: '#161B22', border: '1px solid rgba(48,54,61,0.8)', borderRadius: '8px', color: '#E6EDF3', fontSize: '0.8rem' }} />
-                        <Area type="monotone" dataKey={config.y} stroke="#58A6FF" strokeWidth={2} fill="url(#gradChat)" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#E2E8F0" />
+                        <XAxis dataKey={config.x} stroke="#94A3B8" fontSize={11} />
+                        <YAxis tickFormatter={v => typeof v === 'number' && v > 1000 ? formatCurrency(v) : v} stroke="#94A3B8" fontSize={11} />
+                        <Tooltip contentStyle={{ background: '#fff', border: '1px solid #E2E8F0', borderRadius: '8px', color: '#1E293B', fontSize: '0.8rem', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }} />
+                        <Area type="monotone" dataKey={config.y} stroke="#0070DD" strokeWidth={2} fill="url(#gradChat)" />
                     </AreaChart>
                 )
             default:

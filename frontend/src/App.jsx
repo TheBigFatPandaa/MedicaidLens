@@ -1,5 +1,6 @@
-import { Routes, Route, NavLink, useLocation } from 'react-router-dom'
-import { MessageCircle, LayoutDashboard, AlertTriangle, TrendingUp, FileCode2 } from 'lucide-react'
+import { useState } from 'react'
+import { Routes, Route, NavLink } from 'react-router-dom'
+import { MessageCircle, LayoutDashboard, AlertTriangle, TrendingUp, FileCode2, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import Chat from './pages/Chat'
 import Anomalies from './pages/Anomalies'
@@ -7,7 +8,7 @@ import Trends from './pages/Trends'
 import CodeExplorer from './pages/CodeExplorer'
 
 export default function App() {
-    const location = useLocation()
+    const [collapsed, setCollapsed] = useState(false)
 
     const navItems = [
         { to: '/', icon: MessageCircle, label: 'AI Chat' },
@@ -19,11 +20,22 @@ export default function App() {
 
     return (
         <div className="app-container">
-            <aside className="sidebar">
+            <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
+                <button
+                    className="sidebar-toggle"
+                    onClick={() => setCollapsed(!collapsed)}
+                    title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                    {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+                </button>
+
                 <div className="sidebar-brand">
-                    <h1>MEDICAIDLENS</h1>
-                    <div className="tagline">HHS Open Data</div>
+                    <div>
+                        <h1>MEDICAIDLENS</h1>
+                        <div className="tagline">HHS Open Data</div>
+                    </div>
                 </div>
+
                 <nav className="sidebar-nav">
                     {navItems.map(({ to, icon: Icon, label }) => (
                         <NavLink
@@ -31,19 +43,21 @@ export default function App() {
                             to={to}
                             end={to === '/'}
                             className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                            title={collapsed ? label : undefined}
                         >
                             <Icon />
                             <span>{label}</span>
                         </NavLink>
                     ))}
                 </nav>
+
                 <div className="sidebar-footer">
                     <p>
                         HHS Medicaid Provider Spending
                         <br />
                         227M rows · Jan 2018 – Dec 2024
                         <br />
-                        <span className="powered">Powered by DOGE × AI</span>
+                        <span className="powered">DOGE × Gravity by Innovaccer</span>
                     </p>
                 </div>
             </aside>

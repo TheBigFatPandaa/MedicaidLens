@@ -12,11 +12,12 @@ import {
 } from '../api'
 
 const TOOLTIP_STYLE = {
-    background: '#161B22',
-    border: '1px solid rgba(48,54,61,0.8)',
+    background: '#fff',
+    border: '1px solid #E2E8F0',
     borderRadius: '8px',
-    color: '#E6EDF3',
+    color: '#1E293B',
     fontSize: '0.78rem',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
 }
 
 function ProviderModal({ npi, onClose }) {
@@ -70,11 +71,11 @@ function ProviderModal({ npi, onClose }) {
                                     </div>
                                     <ResponsiveContainer width="100%" height={220}>
                                         <AreaChart data={data.trend}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                                            <XAxis dataKey="claim_month" tickFormatter={formatMonth} stroke="#484F58" fontSize={10} />
-                                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={10} />
+                                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(226,232,240,0.8)" />
+                                            <XAxis dataKey="claim_month" tickFormatter={formatMonth} stroke="#94A3B8" fontSize={10} />
+                                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#94A3B8" fontSize={10} />
                                             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatCurrency(v), 'Paid']} labelFormatter={formatMonth} />
-                                            <Area type="monotone" dataKey="total_paid" stroke="#58A6FF" fill="rgba(88,166,255,0.08)" />
+                                            <Area type="monotone" dataKey="total_paid" stroke="#0070DD" fill="rgba(88,166,255,0.08)" />
                                         </AreaChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -197,15 +198,15 @@ export default function Dashboard() {
                         <AreaChart data={chartData}>
                             <defs>
                                 <linearGradient id="gradCyan" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="0%" stopColor="#58A6FF" stopOpacity={0.2} />
-                                    <stop offset="100%" stopColor="#58A6FF" stopOpacity={0} />
+                                    <stop offset="0%" stopColor="#0070DD" stopOpacity={0.2} />
+                                    <stop offset="100%" stopColor="#0070DD" stopOpacity={0} />
                                 </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                            <XAxis dataKey="month" stroke="#484F58" fontSize={11} />
-                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={11} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(226,232,240,0.8)" />
+                            <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} />
+                            <YAxis tickFormatter={v => formatCurrency(v)} stroke="#94A3B8" fontSize={11} />
                             <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [formatCurrency(v), 'Spending']} />
-                            <Area type="monotone" dataKey="spending" stroke="#58A6FF" strokeWidth={2} fill="url(#gradCyan)" />
+                            <Area type="monotone" dataKey="spending" stroke="#0070DD" strokeWidth={2} fill="url(#gradCyan)" />
                         </AreaChart>
                     </ResponsiveContainer>
                 </div>
@@ -254,9 +255,9 @@ export default function Dashboard() {
                     </div>
                     <ResponsiveContainer width="100%" height={380}>
                         <BarChart data={topCodes.slice(0, 10)} layout="vertical" margin={{ left: 60 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(48,54,61,0.6)" />
-                            <XAxis type="number" tickFormatter={v => formatCurrency(v)} stroke="#484F58" fontSize={10} />
-                            <YAxis type="category" dataKey="hcpcs_code" stroke="#484F58" fontSize={11} width={60} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(226,232,240,0.8)" />
+                            <XAxis type="number" tickFormatter={v => formatCurrency(v)} stroke="#94A3B8" fontSize={10} />
+                            <YAxis type="category" dataKey="hcpcs_code" stroke="#94A3B8" fontSize={11} width={60} />
                             <Tooltip
                                 contentStyle={TOOLTIP_STYLE}
                                 formatter={(v) => [formatCurrency(v), 'Total Paid']}
@@ -265,7 +266,7 @@ export default function Dashboard() {
                                     return `${label} — ${code?.description || ''}`
                                 }}
                             />
-                            <Bar dataKey="total_paid" fill="#BC8CFF" radius={[0, 4, 4, 0]} />
+                            <Bar dataKey="total_paid" fill="#0070DD" radius={[0, 4, 4, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
