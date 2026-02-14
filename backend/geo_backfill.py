@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 DB_PATH = os.getenv("DATABASE_PATH", "data/medicaid.duckdb")
 NPI_API = "https://npiregistry.cms.hhs.gov/api/"
 CSV_STAGING = os.getenv("GEO_CSV_PATH", "data/provider_geo_staging.csv")
-CONCURRENCY = 50        # parallel HTTP requests
+CONCURRENCY = 20        # parallel HTTP requests (keep sane to avoid NPPES silently dropping responses)
 REQUEST_TIMEOUT = 10    # seconds per request
 MAX_RETRIES = 3
 
