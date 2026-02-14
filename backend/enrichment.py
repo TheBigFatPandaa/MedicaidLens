@@ -176,7 +176,7 @@ def get_hcpcs_description(code: str) -> str:
 
 def enrich_providers(providers: list[dict], npi_field: str = "billing_npi") -> list[dict]:
     """Enrich provider records with names/specialties from local provider_geo table.
-    Falls back to NPI Registry API only for missing NPIs."""
+    Falls back to NPI Registry API for NPIs not found or with incomplete data."""
     if not providers:
         return providers
 
@@ -198,17 +198,19 @@ def enrich_providers(providers: list[dict], npi_field: str = "billing_npi") -> l
         ).fetchall()
         con.close()
         for npi, name, ptype, spec, state, city in rows:
-            geo_map[npi] = {
-                "name": name or "Unknown",
-                "provider_type": ptype or "",
-                "specialty": spec or "",
-                "state": state or "",
-                "city": city or "",
-            }
+            # Only trust records that have actual data (state present)
+            if state and name and name not in ("Unknown", "Unknown Provider", "Unknown Org"):
+                geo_map[npi] = {
+                    "name": name,
+                    "provider_type": ptype or "",
+                    "specialty": spec or "",
+                    "state": state,
+                    "city": city or "",
+                }
     except Exception as e:
         logger.warning("Bulk geo lookup failed: %s", e)
 
-    # Apply enrichment
+    # Apply enrichment — use geo_map if good, else fall back to live API
     for provider in providers:
         npi = str(provider.get(npi_field, ""))
         if not npi:
@@ -216,13 +218,13 @@ def enrich_providers(providers: list[dict], npi_field: str = "billing_npi") -> l
         if npi in geo_map:
             info = geo_map[npi]
         else:
-            # Fallback to API for unknown NPIs (rare)
+            # Fall back to live NPI Registry API (cached via lru_cache)
             info = lookup_npi(npi)
-        provider["provider_name"] = info["name"]
-        provider["provider_type"] = info["provider_type"]
-        provider["specialty"] = info["specialty"]
-        provider["state"] = info["state"]
-        provider["city"] = info["city"]
+        provider["provider_name"] = info.get("name", "Unknown")
+        provider["provider_type"] = info.get("provider_type", "")
+        provider["specialty"] = info.get("specialty", "")
+        provider["state"] = info.get("state", "")
+        provider["city"] = info.get("city", "")
     return providers
 
 
