@@ -150,13 +150,45 @@ def _detect_and_enrich(results: list[dict]) -> list[dict]:
         except Exception as e:
             logger.warning("NPI enrichment failed for field %s: %s", npi_field, e)
 
-    # Enrich HCPCS columns
-    hcpcs_fields = [k for k in keys if 'hcpcs' in k.lower() or 'code' in k.lower()]
+    # Enrich HCPCS columns (only actual hcpcs columns, not score/avg columns)
+    hcpcs_fields = [k for k in keys if 'hcpcs' in k.lower()]
     for code_field in hcpcs_fields:
         try:
             results = enrich_codes(results, code_field=code_field)
         except Exception as e:
             logger.warning("HCPCS enrichment failed for field %s: %s", code_field, e)
+
+    # Post-enrichment cleanup: remove NULL geo alias columns that duplicate enriched columns
+    if results:
+        # These are common aliases the AI uses from provider_geo joins — if mostly NULL, drop them
+        geo_aliases = {'provider', 'name', 'type', 'provider_name_1', 'npi_name'}
+        enriched_keys = {'provider_name', 'provider_type', 'specialty', 'city', 'state'}
+        has_enriched = bool(enriched_keys & set(results[0].keys()))
+
+        if has_enriched:
+            # Find columns that are all NULL/empty/dash and match geo alias patterns
+            all_keys = list(results[0].keys())
+            drop_keys = set()
+            for k in all_keys:
+                if k in geo_aliases or (k in enriched_keys and any(k2 in all_keys for k2 in geo_aliases)):
+                    continue
+                # Check if this looks like a geo-dup column with all NULL values
+                if k.lower() in {'provider', 'name', 'type'} and all(
+                    not row.get(k) or row.get(k) in (None, '', '—', 'Unknown')
+                    for row in results
+                ):
+                    drop_keys.add(k)
+
+            # Also drop any geo_aliases that are all NULL when we have enriched versions
+            for alias in geo_aliases:
+                if alias in all_keys and all(
+                    not row.get(alias) or row.get(alias) in (None, '', '—', 'Unknown')
+                    for row in results
+                ):
+                    drop_keys.add(alias)
+
+            if drop_keys:
+                results = [{k: v for k, v in row.items() if k not in drop_keys} for row in results]
 
     # Reorder columns to put names first
     if results:
@@ -168,6 +200,33 @@ def _detect_and_enrich(results: list[dict]) -> list[dict]:
         results = [{k: row.get(k) for k in ordered} for row in results]
 
     return results
+
+
+def _sanitize_sql(sql: str) -> str:
+    """Remove provider_geo JOINs and related SELECTs from AI-generated SQL.
+    The enrichment system handles provider info automatically."""
+    import re
+    if not sql or 'provider_geo' not in sql.lower():
+        return sql
+
+    # Remove JOIN ... provider_geo ... ON ... clauses
+    sql = re.sub(
+        r'\b(LEFT\s+|RIGHT\s+|INNER\s+|OUTER\s+|FULL\s+)?JOIN\s+provider_geo\s+\w+\s+ON\s+[^\n]+',
+        '',
+        sql,
+        flags=re.IGNORECASE
+    )
+
+    # Remove SELECT columns that reference the provider_geo alias (e.g., pg.name, pg.state)
+    # Find common aliases: pg, geo, g
+    sql = re.sub(r',?\s*\bpg\.\w+(\s+AS\s+\w+)?', '', sql, flags=re.IGNORECASE)
+    sql = re.sub(r',?\s*\bgeo\.\w+(\s+AS\s+\w+)?', '', sql, flags=re.IGNORECASE)
+
+    # Clean up any resulting double commas or leading commas after SELECT
+    sql = re.sub(r',\s*,', ',', sql)
+    sql = re.sub(r'SELECT\s*,', 'SELECT ', sql, flags=re.IGNORECASE)
+
+    return sql
 
 
 async def chat(message: str, history: list[dict] = None) -> dict:
@@ -220,6 +279,9 @@ async def chat(message: str, history: list[dict] = None) -> dict:
 
         # Step 2: Execute SQL if present
         if sql:
+            # Sanitize: strip provider_geo joins (enrichment handles this)
+            sql = _sanitize_sql(sql)
+
             sql_upper = sql.strip().upper()
             if not sql_upper.startswith("SELECT") and not sql_upper.startswith("WITH"):
                 error = "Only SELECT queries are allowed."
