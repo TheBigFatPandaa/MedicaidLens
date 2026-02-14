@@ -176,7 +176,7 @@ def get_hcpcs_description(code: str) -> str:
 
 def enrich_providers(providers: list[dict], npi_field: str = "billing_npi") -> list[dict]:
     """Enrich provider records with names/specialties from local provider_geo table.
-    Falls back to NPI Registry API for NPIs not found or with incomplete data."""
+    Falls back to NPI Registry API (concurrent) for NPIs not found or with incomplete data."""
     if not providers:
         return providers
 
@@ -210,16 +210,23 @@ def enrich_providers(providers: list[dict], npi_field: str = "billing_npi") -> l
     except Exception as e:
         logger.warning("Bulk geo lookup failed: %s", e)
 
-    # Apply enrichment — use geo_map if good, else fall back to live API
+    # Find NPIs that need API fallback
+    missing_npis = [n for n in npis if n not in geo_map]
+
+    # Concurrent API lookups for missing NPIs (all at once, not sequential)
+    if missing_npis:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=min(len(missing_npis), 25)) as executor:
+            api_results = list(executor.map(lookup_npi, missing_npis))
+        for npi, info in zip(missing_npis, api_results):
+            geo_map[npi] = info
+
+    # Apply enrichment
     for provider in providers:
         npi = str(provider.get(npi_field, ""))
         if not npi:
             continue
-        if npi in geo_map:
-            info = geo_map[npi]
-        else:
-            # Fall back to live NPI Registry API (cached via lru_cache)
-            info = lookup_npi(npi)
+        info = geo_map.get(npi, {"name": "Unknown", "provider_type": "", "specialty": "", "state": "", "city": ""})
         provider["provider_name"] = info.get("name", "Unknown")
         provider["provider_type"] = info.get("provider_type", "")
         provider["specialty"] = info.get("specialty", "")
